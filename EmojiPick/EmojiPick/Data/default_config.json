@@ -1,0 +1,56 @@
+{
+  "app": {
+    "version": "1.0.0",
+    "autoStart": true,
+    "minimizeToTray": true
+  },
+  "hotkey": {
+    "modifiers": ["Ctrl", "Alt"],
+    "key": "E"
+  },
+  "ui": {
+    "theme": "dark",
+    "fontSize": 24,
+    "windowOpacity": 0.95,
+    "gridColumns": 4,
+    "gridRows": 3,
+    "positionMode": "center"
+  },
+  "behavior": {
+    "autoClose": true,
+    "injectMode": "paste",
+    "fuzzyThreshold": 0.6,
+    "maxResults": 12
+  },
+  "llm": {
+    "enabled": true,
+    "provider": "auto",
+    "fallback_chain": ["ollama", "llamacpp", "fuzzy"],
+    "cache_results": true,
+    "cache_ttl_minutes": 5,
+    "providers": {
+      "ollama": {
+        "enabled": true,
+        "endpoint": "http://localhost:11434",
+        "model": "mistral",
+        "timeout_ms": 3000
+      },
+      "llamacpp": {
+        "enabled": true,
+        "model_path": "%APPDATA%/EmojiPick/models/Mistral-7B-Q4_K_M.gguf",
+        "use_gpu": true,
+        "gpu_type": "auto",
+        "gpu_layers": 20,
+        "context_size": 512,
+        "batch_size": 64,
+        "timeout_ms": 3000
+      }
+    }
+  },
+  "logging": {
+    "level": "info",
+    "max_file_size_mb": 10,
+    "retention_days": 7
+  },
+  "language": "en"
+}

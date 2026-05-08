@@ -1,0 +1,65 @@
+## .NET / C#
+bin/
+obj/
+*.dll
+*.exe
+*.pdb
+*.nuspec
+*.nupkg
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio Code
+.vscode/*
+!.vscode/{launch,settings,tasks}.json
+
+# Rider / JetBrains
+*.sln.DotSettings.user
+.idea/
+*.csproj.DotSettings
+
+## Build outputs
+publish/
+dist/
+*.zip
+
+## User data (never commit)
+%APPDATA%/
+config.json
+*.log
+
+## LLM models (large files)
+models/
+*.gguf
+*.bin
+
+## Claude Agent files (NEVER push)
+CLAUDE.md
+.claude/
+
+## OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+## IDE temp files
+*.tmp
+*.bak
+*.swp
+*~.nib
+
+## NuGet
+packages/
+*.nuget
+NuGet.Config
+
+## WiX
+*.wixobj
+*.wixpdb
+*.cub
+*.wixout

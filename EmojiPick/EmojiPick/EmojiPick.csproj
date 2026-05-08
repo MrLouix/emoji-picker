@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net7.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <AssemblyName>EmojiPick</AssemblyName>
+    <RootNamespace>EmojiPick</RootNamespace>
+    <Version>1.0.0</Version>
+    <Authors>EmojiPick Project</Authors>
+    <Description>Emoji Overlay Picker for Windows — Fuzzy + LLM matching</Description>
+    <Copyright>MIT License</Copyright>
+
+    <!-- Single file publish target -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Core logging (structured, file rotation) -->
+    <PackageReference Include="Serilog" Version="3.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
+
+    <!-- GPU Support — choose ONE based on hardware -->
+    <!-- Option 1: CUDA (NVIDIA GPU) -->
+    <!-- <PackageReference Include="LLamaSharp" Version="0.10.0" /> -->
+    <!-- <PackageReference Include="LLamaSharp.cuda" Version="0.10.0" /> -->
+
+    <!-- Option 2: ROCm (AMD GPU — Radeon RX 6600) -->
+    <!-- <PackageReference Include="LLamaSharp" Version="0.10.0" /> -->
+    <!-- <PackageReference Include="LLamaSharp.rocm" Version="0.10.0" /> -->
+
+    <!-- Option 3: Metal (Apple Silicon — M1/M2) -->
+    <!-- <PackageReference Include="LLamaSharp" Version="0.10.0" /> -->
+    <!-- <PackageReference Include="LLamaSharp.metal" Version="0.10.0" /> -->
+
+    <!-- Option 4: CPU-only (default — uncomment when ready for LLM feature) -->
+    <!-- <PackageReference Include="LLamaSharp" Version="0.10.0" /> -->
+
+    <!-- WMI for GPU hardware detection -->
+    <PackageReference Include="System.Management" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Embedded resources -->
+    <EmbeddedResource Include="Data\emojis.json.gzip" />
+    <EmbeddedResource Include="Data\default_config.json" />
+    <EmbeddedResource Include="app.ico" />
+  </ItemGroup>
+
+</Project>
