@@ -35,6 +35,9 @@ public static class NativeMethods
     [DllImport("user32.dll")]
     public static extern short GetAsyncKeyState(int vKey);
 
+    [DllImport("kernel32.dll")]
+    public static extern uint GetCurrentThreadId();
+
     // ---- SendInput ----
     [DllImport("user32.dll")]
     public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
