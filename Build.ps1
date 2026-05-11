@@ -8,6 +8,8 @@ param(
 
     [switch]$Publish,
 
+    [switch]$Installer,
+
     [switch]$Clean
 )
 
@@ -15,82 +17,109 @@ $ErrorActionPreference = "Stop"
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $SolutionPath = Join-Path $ScriptDir "EmojiPick.sln"
 $OutputDir = Join-Path $ScriptDir "publish"
+$LogPath = Join-Path $ScriptDir "build.log"
+
+# Initialise le log
+"`n=== Build démarré le $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ===" | Out-File $LogPath -Encoding utf8
+
+# Helper: log à la fois console et fichier
+function Write-Log {
+    param([string]$Message, [string]$Color = "White")
+    $Message | Out-File $LogPath -Encoding utf8 -Append
+    Write-Host $Message -ForegroundColor $Color
+}
 
 # --- 1. Prérequis ---------------------------------------------------------
-Write-Host ""
-Write-Host "=== EmojiPick Build Script ===" -ForegroundColor Cyan
-Write-Host ""
+Write-Log ""
+Write-Log "=== EmojiPick Build Script ===" Cyan
+Write-Log ""
 
 # Vérifie dotnet.exe
 $dotnet = Get-Command "dotnet" -ErrorAction SilentlyContinue
 if (-not $dotnet) {
-    Write-Host "[ERREUR] .NET SDK non détecté. Installe le .NET 7.0 SDK :" -ForegroundColor Red
-    Write-Host "  https://dotnet.microsoft.com/download/dotnet/7.0" -ForegroundColor Yellow
+    Write-Log "[ERREUR] .NET SDK non détecté. Installe le .NET 7.0 SDK :" Red
+    Write-Log "  https://dotnet.microsoft.com/download/dotnet/7.0" Yellow
     exit 1
 }
 
 $sdkVersion = (dotnet --version) 2>$null
-Write-Host "[OK]   dotnet $sdkVersion" -ForegroundColor Green
+Write-Log "[OK]   dotnet $sdkVersion" Green
 
 # Vérifie la .sln
 if (-not (Test-Path $SolutionPath)) {
-    Write-Host "[ERREUR] Fichier .sln introuvable : $SolutionPath" -ForegroundColor Red
+    Write-Log "[ERREUR] Fichier .sln introuvable : $SolutionPath" Red
     exit 1
 }
 
 # --- 2. Nettoyage optionnel ------------------------------------------------
 if ($Clean) {
-    Write-Host "[...]  Nettoyage (dotnet clean)..." -ForegroundColor Yellow
-    dotnet clean $SolutionPath -c $Configuration --nologo
-    dotnet clean $SolutionPath --nologo
+    Write-Log "[...]  Nettoyage (dotnet clean)..." Yellow
+    dotnet clean $SolutionPath -c $Configuration --nologo 2>&1 | Out-File $LogPath -Encoding utf8 -Append
+    dotnet clean $SolutionPath --nologo 2>&1 | Out-File $LogPath -Encoding utf8 -Append
 }
 
 # --- 3. Restauration des packages ------------------------------------------
-Write-Host "[...]  Restauration des packages NuGet..." -ForegroundColor Yellow
-dotnet restore $SolutionPath --nologo
+Write-Log "[...]  Restauration des packages NuGet..." Yellow
+$restoreResult = dotnet restore $SolutionPath --nologo 2>&1
+$restoreResult | Out-File $LogPath -Encoding utf8 -Append
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[ERREUR] dotnet restore a échoué." -ForegroundColor Red
+    Write-Log "[ERREUR] dotnet restore a échoué." Red
     exit 1
 }
-Write-Host "[OK]   Restore terminé." -ForegroundColor Green
+Write-Log "[OK]   Restore terminé." Green
 
 # --- 4. Build ---------------------------------------------------------------
-Write-Host "[...]  Compilation ($Configuration)..." -ForegroundColor Yellow
-dotnet build $SolutionPath -c $Configuration --no-restore --nologo
+Write-Log "[...]  Compilation ($Configuration)..." Yellow
+$buildResult = dotnet build $SolutionPath -c $Configuration --no-restore --nologo 2>&1
+$buildResult | Out-File $LogPath -Encoding utf8 -Append
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "[ERREUR] dotnet build a échoué." -ForegroundColor Red
+    Write-Log "[ERREUR] dotnet build a échoué." Red
     exit 1
 }
-Write-Host "[OK]   Build réussi." -ForegroundColor Green
+Write-Log "[OK]   Build réussi." Green
 
 # --- 5. Publish optionnel --------------------------------------------------
 if ($Publish) {
-    Write-Host "[...]  Publication (publish)..." -ForegroundColor Yellow
-    dotnet publish $SolutionPath -c $Configuration --no-build -o $OutputDir --nologo
+    Write-Log "[...]  Publication (publish)..." Yellow
+    # Note: --no-build is omitted intentionally; publish needs to rebuild with the correct RID for single-file bundling
+    $publishResult = dotnet publish "src\EmojiPick\EmojiPick.csproj" -c $Configuration -o $OutputDir -r win-x64 --nologo 2>&1
+    $publishResult | Out-File $LogPath -Encoding utf8 -Append
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "[ERREUR] dotnet publish a échoué." -ForegroundColor Red
+        Write-Log "[ERREUR] dotnet publish a échoué." Red
         exit 1
     }
-    Write-Host "[OK]   Publié vers : $OutputDir" -ForegroundColor Green
-    Write-Host ""
+    Write-Log "[OK]   Publié vers : $OutputDir" Green
+    Write-Log ""
     Get-ChildItem $OutputDir -Recurse | Where-Object { !$_.PSIsContainer } | Sort-Object Length -Descending | Select-Object -First 5 | ForEach-Object {
-        Write-Host "       $($_.Name) ($([math]::Round($_.Length / 1KB, 1)) KB)" -ForegroundColor DarkGray
+        Write-Log "       $($_.Name) ($([math]::Round($_.Length / 1KB, 1)) KB)" DarkGray
     }
 }
 
 # --- 6. Résumé --------------------------------------------------------------
-Write-Host ""
-Write-Host "=== Résumé ===" -ForegroundColor Cyan
+Write-Log ""
+Write-Log "=== Résumé ===" Cyan
 
-$binDir = Join-Path (Join-Path $ScriptDir "EmojiPick") "bin"
+$binDir = Join-Path (Join-Path (Join-Path $ScriptDir "src") "EmojiPick") "bin"
 if (Test-Path $binDir) {
     $assemblies = Get-ChildItem "$binDir\**\*.exe" -Recurse -ErrorAction SilentlyContinue
     foreach ($exe in $assemblies) {
-        Write-Host "       $($exe.Name) -> $($exe.DirectoryName)" -ForegroundColor DarkGray
+        Write-Log "       $($exe.Name) -> $($exe.DirectoryName)" DarkGray
     }
 }
 
-Write-Host ""
-Write-Host "Tape ./Build.ps1 -Publish pour générer un dossier publish prêt à déployer." -ForegroundColor Gray
-Write-Host "Tape ./Build.ps1 -Clean pour nettoyer avant la compilation." -ForegroundColor Gray
-Write-Host ""
+$buildErrors = $null
+if ($buildResult) {
+    $buildErrors = ($buildResult | Select-String "error|warning" -CaseSensitive:$false)
+}
+if ($buildErrors) {
+    Write-Log ""
+    Write-Log "--- Warnings/Errors ---" Yellow
+    $buildErrors | Out-File $LogPath -Encoding utf8 -Append
+    $buildErrors | ForEach-Object { Write-Log "  $_" Yellow }
+}
+
+Write-Log ""
+Write-Log "Log complet : $LogPath" Gray
+Write-Log "Tape ./Build.ps1 -Publish pour générer un dossier publish prêt à déployer." Gray
+Write-Log "Tape ./Build.ps1 -Clean pour nettoyer avant la compilation." Gray
+Write-Log ""

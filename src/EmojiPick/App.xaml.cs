@@ -2,6 +2,8 @@ using System;
 using System.Windows;
 using EmojiPick.Services;
 using EmojiPick.Windows;
+using Application = System.Windows.Application;
+using MessageBox = System.Windows.MessageBox;
 
 namespace EmojiPick;
 

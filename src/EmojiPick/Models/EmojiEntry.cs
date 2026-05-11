@@ -12,7 +12,7 @@ public class EmojiEntry
     public string Name { get; set; } = "";
 
     /// <summary>Searchable tags for fuzzy matching (e.g. ["happy", "smile", "face"])</summary>
-    public List<string> Tags { get; set; } = [];
+    public List<string> Tags { get; set; } = new List<string>();
 
     /// <summary>Unicode category group (e.g. "smileys", "hands", "objects")</summary>
     public string Category { get; set; } = "";

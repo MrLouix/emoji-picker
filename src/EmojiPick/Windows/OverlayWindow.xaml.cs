@@ -4,13 +4,19 @@ using System.Windows.Input;
 using System.Windows.Media;
 using EmojiPick.Models;
 using EmojiPick.Services;
+using Brushes = System.Windows.Media.Brushes;
+using Button = System.Windows.Controls.Button;
+using Color = System.Windows.Media.Color;
+using HorizontalAlignment = System.Windows.HorizontalAlignment;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
+using Orientation = System.Windows.Controls.Orientation;
 
 namespace EmojiPick.Windows;
 
 public partial class OverlayWindow : System.Windows.Window
 {
     private readonly SelectionHandler _selectionHandler;
-    private List<EmojiMatch> _matches = [];
+    private List<EmojiMatch> _matches = new List<EmojiMatch>();
     private int _selectedIndex = -1;
     private int _gridColumns = 4;
 
@@ -57,7 +63,7 @@ public partial class OverlayWindow : System.Windows.Window
         CtxLabel.Text = display;
 
         var query = text.Trim();
-        _matches = string.IsNullOrEmpty(query) ? [] : EmojiMatcher.GetMatches(query);
+        _matches = string.IsNullOrEmpty(query) ? new List<EmojiMatch>() : EmojiMatcher.GetMatches(query);
 
         RenderGrid();
         PositionAtCursor();
@@ -224,7 +230,7 @@ public partial class OverlayWindow : System.Windows.Window
         if (string.IsNullOrEmpty(query))
             query = InitialContext?.Text.Trim() ?? "";
 
-        _matches = string.IsNullOrEmpty(query) ? [] : EmojiMatcher.GetMatches(query);
+        _matches = string.IsNullOrEmpty(query) ? new List<EmojiMatch>() : EmojiMatcher.GetMatches(query);
         _selectedIndex = _matches.Count > 0 ? 0 : -1;
         RenderGrid();
     }

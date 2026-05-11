@@ -67,11 +67,11 @@ public class FuzzyMatcherTests
     {
         var emojis = new List<EmojiEntry>
         {
-            new() { Char = "😍", Tags = ["love", "heart"] },
-            new() { Char = "😊", Tags = ["smile", "happy"] },
-            new() { Char = "🎭", Tags = ["theater", "drama"] },
-            new() { Char = "🌹", Tags = ["rose", "flower"] },
-            new() { Char = "😢", Tags = ["sad", "cry", "tear"] },
+            new() { Char = "😍", Tags = new List<string> { "love", "heart" } },
+            new() { Char = "😊", Tags = new List<string> { "smile", "happy" } },
+            new() { Char = "🎭", Tags = new List<string> { "theater", "drama" } },
+            new() { Char = "🌹", Tags = new List<string> { "rose", "flower" } },
+            new() { Char = "😢", Tags = new List<string> { "sad", "cry", "tear" } },
         };
 
         var results = FuzzyMatcher.GetMatches("love", emojis);
@@ -86,7 +86,7 @@ public class FuzzyMatcherTests
         // "xyz" contre des tags sans rapport → scores << 80
         var emojis = new List<EmojiEntry>
         {
-            new() { Char = "🎲", Tags = ["dice", "game", "luck"] },
+            new() { Char = "🎲", Tags = new List<string> { "dice", "game", "luck" } },
         };
 
         var results = FuzzyMatcher.GetMatches("xyz", emojis, threshold: 80);
@@ -99,7 +99,7 @@ public class FuzzyMatcherTests
     {
         var emojis = new List<EmojiEntry>
         {
-            new() { Char = "😀", Tags = ["happy", "smile"] },
+            new() { Char = "😀", Tags = new List<string> { "happy", "smile" } },
         };
 
         var results = FuzzyMatcher.GetMatches("", emojis);

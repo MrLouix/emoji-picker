@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http;
 using EmojiPick.Models;
 using EmojiPick.Services;
 using Xunit;
@@ -16,11 +17,12 @@ public class OllamaMatcherTests
     };
 
     private static List<EmojiEntry> SampleCandidates() =>
-    [
-        new() { Char = "😀", Name = "grinning face", Tags = ["happy", "smile"], Category = "smileys" },
-        new() { Char = "❤️", Name = "red heart",     Tags = ["love", "heart"],  Category = "symbols" },
-        new() { Char = "🔥", Name = "fire",           Tags = ["hot", "fire"],    Category = "objects" },
-    ];
+        new List<EmojiEntry>
+        {
+            new() { Char = "😀", Name = "grinning face", Tags = new List<string> { "happy", "smile" }, Category = "smileys" },
+            new() { Char = "❤️", Name = "red heart",     Tags = new List<string> { "love", "heart" },  Category = "symbols" },
+            new() { Char = "🔥", Name = "fire",           Tags = new List<string> { "hot", "fire" },    Category = "objects" },
+        };
 
     // ── Constructor ───────────────────────────────────────────────────────────
 

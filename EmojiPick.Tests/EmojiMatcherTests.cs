@@ -8,30 +8,31 @@ public class EmojiMatcherTests : IDisposable
 {
     public EmojiMatcherTests()
     {
-        EmojiMatcher.SetEmojisForTesting([]);
+        EmojiMatcher.SetEmojisForTesting(new List<EmojiEntry>());
     }
 
     public void Dispose()
     {
-        EmojiMatcher.SetEmojisForTesting([]);
+        EmojiMatcher.SetEmojisForTesting(new List<EmojiEntry>());
     }
 
     private static List<EmojiEntry> MakeTestEmojis() =>
-    [
-        new() { Char = "😀", Name = "grinning face",          Tags = ["happy", "smile", "grin"],              Category = "smileys" },
-        new() { Char = "😂", Name = "face with tears of joy", Tags = ["laugh", "lol", "funny"],               Category = "smileys" },
-        new() { Char = "❤️", Name = "red heart",              Tags = ["love", "heart", "red"],                Category = "symbols" },
-        new() { Char = "👍", Name = "thumbs up",              Tags = ["good", "ok", "approve", "yes"],        Category = "people" },
-        new() { Char = "🔥", Name = "fire",                   Tags = ["fire", "hot", "lit", "flame"],         Category = "objects" },
-        new() { Char = "🎉", Name = "party popper",           Tags = ["party", "celebrate", "confetti"],      Category = "activities" },
-        new() { Char = "😢", Name = "crying face",            Tags = ["sad", "cry", "tear", "unhappy"],       Category = "smileys" },
-        new() { Char = "🌹", Name = "rose",                   Tags = ["rose", "flower", "love", "romantic"],  Category = "nature" },
-        new() { Char = "😎", Name = "smiling with sunglasses",Tags = ["cool", "sunglasses", "awesome"],       Category = "smileys" },
-        new() { Char = "🚀", Name = "rocket",                 Tags = ["rocket", "space", "launch"],           Category = "travel" },
-        new() { Char = "👏", Name = "clapping hands",         Tags = ["clap", "applause", "well done"],       Category = "people" },
-        new() { Char = "🐱", Name = "cat face",               Tags = ["cat", "kitten", "meow"],               Category = "animals" },
-        new() { Char = "🍕", Name = "pizza",                  Tags = ["pizza", "food", "italian"],            Category = "food" },
-    ];
+        new List<EmojiEntry>
+        {
+            new() { Char = "😀", Name = "grinning face",          Tags = new List<string> { "happy", "smile", "grin" },              Category = "smileys" },
+            new() { Char = "😂", Name = "face with tears of joy", Tags = new List<string> { "laugh", "lol", "funny" },               Category = "smileys" },
+            new() { Char = "❤️", Name = "red heart",              Tags = new List<string> { "love", "heart", "red" },                Category = "symbols" },
+            new() { Char = "👍", Name = "thumbs up",              Tags = new List<string> { "good", "ok", "approve", "yes" },        Category = "people" },
+            new() { Char = "🔥", Name = "fire",                   Tags = new List<string> { "fire", "hot", "lit", "flame" },         Category = "objects" },
+            new() { Char = "🎉", Name = "party popper",           Tags = new List<string> { "party", "celebrate", "confetti" },      Category = "activities" },
+            new() { Char = "😢", Name = "crying face",            Tags = new List<string> { "sad", "cry", "tear", "unhappy" },       Category = "smileys" },
+            new() { Char = "🌹", Name = "rose",                   Tags = new List<string> { "rose", "flower", "love", "romantic" },  Category = "nature" },
+            new() { Char = "😎", Name = "smiling with sunglasses",Tags = new List<string> { "cool", "sunglasses", "awesome" },       Category = "smileys" },
+            new() { Char = "🚀", Name = "rocket",                 Tags = new List<string> { "rocket", "space", "launch" },           Category = "travel" },
+            new() { Char = "👏", Name = "clapping hands",         Tags = new List<string> { "clap", "applause", "well done" },       Category = "people" },
+            new() { Char = "🐱", Name = "cat face",               Tags = new List<string> { "cat", "kitten", "meow" },               Category = "animals" },
+            new() { Char = "🍕", Name = "pizza",                  Tags = new List<string> { "pizza", "food", "italian" },            Category = "food" },
+        };
 
     // ── Embedded resource — graceful degradation ────────────────────────────
 

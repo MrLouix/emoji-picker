@@ -1,3 +1,4 @@
+using System.IO;
 using System.Reflection;
 
 namespace EmojiPick.Helpers;

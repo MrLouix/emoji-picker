@@ -25,7 +25,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../EmojiPick/EmojiPick.csproj" />
+    <ProjectReference Include="../src/EmojiPick/EmojiPick.csproj" />
   </ItemGroup>
 
 </Project>

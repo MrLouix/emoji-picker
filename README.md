@@ -52,7 +52,7 @@ Press a global hotkey (`Ctrl+Alt+E` by default), and a transparent overlay appea
 
 | Component | Technology |
 |-----------|-----------|
-| Language | C# 10+ |
+| Language | C# 12 |
 | Runtime | .NET 7.0 LTS |
 | UI | WPF (transparent, always-on-top overlay) |
 | Hotkeys | Windows API `RegisterHotKey` (P/Invoke) |
@@ -61,7 +61,9 @@ Press a global hotkey (`Ctrl+Alt+E` by default), and a transparent overlay appea
 | LLM — llama.cpp | LLamaSharp C# bindings + GGUF models |
 | GPU Support | CUDA (NVIDIA) / ROCm (AMD) / CPU-only |
 | Logging | Serilog (file rotation, 7-day retention) |
-| Installer | WiX Toolset (MSI, per-user) |
+| Installer | WiX Toolset v4 (MSI, per-user) |
+| Tests | xUnit |
+| CI | Build.ps1 (PowerShell) + WiX v4 |
 
 ## Quick Start
 
@@ -70,38 +72,47 @@ Press a global hotkey (`Ctrl+Alt+E` by default), and a transparent overlay appea
 - **Windows 10/11**
 - **.NET 7.0 Runtime** ([download](https://dotnet.microsoft.com/en-us/download/dotnet/7.0))
 - *(Optional)* **Ollama** running on `localhost:11434` with a model (e.g. `mistral`)
+- *(Optional)* **WiX Toolset v4** for building the MSI — `dotnet tool install --global wix`
 
 ### Install
 
-1. Download the latest [MSI installer](https://github.com/<user>/emojipick/releases) or standalone `.exe`
+1. Download the latest [MSI installer](https://github.com/MrLouix/emoji-picker/releases) or standalone `.exe`
 2. Run the installer — follow the wizard
 3. EmojiPick starts automatically — icon appears in system tray
 4. Go to any application, select text (or place cursor), press `Ctrl+Alt+E`
 
 ### Build from Source
 
-```bash
+```powershell
 # Clone the repository
-git clone https://github.com/<user>/emojipick.git
-cd emojipick
+git clone https://github.com/MrLouix/emoji-picker.git
+cd emoji-picker
 
-# Build the project
-dotnet restore
-dotnet build -c Release
+# Build (recommended — uses Build.ps1)
+.\Build.ps1                  # Build in Release mode
+.\Build.ps1 -Publish         # Build + publish to ./publish/
+.\Build.ps1 -Clean           # Clean before building
+.\Build.ps1 -Clean -Publish  # Clean + rebuild + publish
+
+# Or with dotnet directly
+dotnet restore EmojiPick.sln
+dotnet build EmojiPick.sln -c Release
 
 # Run (Windows only)
-dotnet run --project EmojiPick/EmojiPick/EmojiPick.csproj
+dotnet run --project src/EmojiPick/EmojiPick.csproj
 
 # Publish standalone executable
-dotnet publish -c Release -p:PublishSingleFile=true
+dotnet publish src/EmojiPick/EmojiPick.csproj -c Release -r win-x64 -p:PublishSingleFile=true
 ```
 
 ### Build MSI Installer
 
-```bash
-# Requires WiX Toolset v3.x
-wix build EmojiPick.Installer/EmojiPick.wixproj -o ./dist/
+```powershell
+# Requires WiX Toolset v4 SDK (included as NuGet package)
+dotnet build EmojiPick.Installer/EmojiPick.wixproj -c Release
 ```
+
+This produces `EmojiPickerSetup.msi` in the `EmojiPick.Installer/bin/Release/` folder.
 
 ## Configuration
 
@@ -146,16 +157,24 @@ User configuration is stored at `%APPDATA%\EmojiPick\config.json`:
 ## Project Structure
 
 ```
-EmojiPick/
-├── EmojiPick.sln
-├── EmojiPick/
-│   ├── Models/          # Data models (Config, EmojiEntry, OllamaModels)
-│   ├── Services/        # Business logic (HotKey, Clipboard, Matching, LLM)
-│   ├── Windows/         # WPF UI (OverlayWindow, TrayIcon)
-│   ├── Helpers/         # Utilities (P/Invoke, FuzzyMatcher, Resources)
-│   └── Data/            # Embedded resources (emoji DB, default config)
-├── EmojiPick.Installer/ # WiX MSI installer
-└── docs/                # Documentation (spec, plan)
+emoji-overlay/
+├── EmojiPick.sln              # Solution file (root)
+├── EmojiPick.Tests/           # xUnit test project
+├── EmojiPick.Installer/       # WiX v4 MSI installer
+│   ├── EmojiPick.wixproj
+│   ├── Product.wxs
+│   ├── icon.ico
+│   └── license.rtf
+├── Build.ps1                  # Build & publish script (PowerShell)
+├── build.log                  # Build log (not committed)
+├── src/
+│   └── EmojiPick/             # Main WPF application
+│       ├── Models/            # Data models (Config, EmojiEntry, OllamaModels)
+│       ├── Services/          # Business logic (HotKey, Clipboard, Matching, LLM)
+│       ├── Windows/           # WPF UI (OverlayWindow, TrayIcon)
+│       ├── Helpers/           # Utilities (P/Invoke, FuzzyMatcher, Resources)
+│       └── Data/              # Embedded resources (emoji DB, default config)
+└── docs/                      # Documentation (spec, plan)
 ```
 
 ## LLM Providers
@@ -167,6 +186,12 @@ EmojiPick supports a **fallback chain** — it tries providers in order until on
 3. **Fuzzy** — Always available. Instant local matching. No AI, no downloads.
 
 > 💡 **No LLM installed?** No problem. EmojiPick works perfectly with fuzzy matching alone.
+
+## Testing
+
+```powershell
+dotnet test EmojiPick.Tests/EmojiPick.Tests.csproj
+```
 
 ## Roadmap
 
@@ -188,5 +213,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
 
 ---
 
-**Document Version**: 1.0  
+**Document Version**: 1.1  
 **Status**: 🚧 Initial development — Phase 0 complete

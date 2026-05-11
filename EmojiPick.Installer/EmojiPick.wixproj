@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="WixToolset.Sdk/4.0.5">
+  <PropertyGroup>
+    <OutputType>Package</OutputType>
+    <PackageFile>EmojiPickerSetup.msi</PackageFile>
+    <Version>1.0.0</Version>
+    <ProductCode>*</ProductCode>
+    <UpgradeCode>{7F2A4B6C-8D1E-4F3A-9B5C-6E7D8F9A0B1C}</UpgradeCode>
+    <DefineConstants>ExeFile=..\\src\\EmojiPick\\bin\\Release\\net7.0-windows\\EmojiPick.exe</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.UI.wixext" Version="4.0.5" />
+  </ItemGroup>
+  <!-- No <Compile Include="Product.wxs"> — the SDK auto-discovers *.wxs files -->
+</Project>

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Globalization;
+using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using EmojiPick.Models;
@@ -61,7 +62,7 @@ public sealed class OllamaMatcher : ILlmMatcher
         if (string.IsNullOrWhiteSpace(selectedText) || candidateEmojis.Count == 0)
         {
             LoggerService.Debug("[OllamaMatcher] Empty input — skipping LLM call.");
-            return [];
+            return new List<EmojiEntry>();
         }
 
         var cacheKey = $"{selectedText}|{string.Join(",", candidateEmojis.Select(e => e.Char))}";
@@ -87,14 +88,14 @@ public sealed class OllamaMatcher : ILlmMatcher
             if (!httpResponse.IsSuccessStatusCode)
             {
                 LoggerService.Warn($"[OllamaMatcher] HTTP {(int)httpResponse.StatusCode} from Ollama — falling back to empty.");
-                return [];
+                return new List<EmojiEntry>();
             }
 
             var responseText = await httpResponse.Content.ReadAsStringAsync(cts.Token);
             var ollamaResp = JsonSerializer.Deserialize<OllamaResponse>(responseText, JsonOptions);
 
             if (ollamaResp is null || string.IsNullOrWhiteSpace(ollamaResp.Response))
-                return [];
+                return new List<EmojiEntry>();
 
             var results = ParseEmojiFromResponse(ollamaResp.Response, candidateEmojis);
             _cache[cacheKey] = (results, DateTime.UtcNow.AddMinutes(CacheTtlMinutes));
@@ -108,17 +109,17 @@ public sealed class OllamaMatcher : ILlmMatcher
         catch (OperationCanceledException)
         {
             LoggerService.Warn("[OllamaMatcher] Request timed out or was cancelled.");
-            return [];
+            return new List<EmojiEntry>();
         }
         catch (HttpRequestException ex)
         {
             LoggerService.Warn($"[OllamaMatcher] Ollama unavailable: {ex.Message}");
-            return [];
+            return new List<EmojiEntry>();
         }
         catch (Exception ex)
         {
             LoggerService.Error("[OllamaMatcher] Unexpected error during LLM call.", ex);
-            return [];
+            return new List<EmojiEntry>();
         }
     }
 

@@ -24,7 +24,7 @@ public class AppConfig
 
 public class HotKeyConfig
 {
-    public string[] Modifiers { get; set; } = ["Ctrl", "Alt"];
+    public string[] Modifiers { get; set; } = new[] { "Ctrl", "Alt" };
     public string Key { get; set; } = "E";
 }
 
@@ -50,7 +50,7 @@ public class LlmConfig
 {
     public bool Enabled { get; set; } = true;
     public string Provider { get; set; } = "auto";
-    public string[] FallbackChain { get; set; } = ["ollama", "llamacpp", "fuzzy"];
+    public string[] FallbackChain { get; set; } = new[] { "ollama", "llamacpp", "fuzzy" };
     public bool CacheResults { get; set; } = true;
     public int CacheTtlMinutes { get; set; } = 5;
     public Dictionary<string, ProviderConfig> Providers { get; set; } = new()

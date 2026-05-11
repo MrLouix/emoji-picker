@@ -27,14 +27,16 @@ obj/
 publish/
 dist/
 *.zip
+build.log
+*.log
 
 ## User data (never commit)
 %APPDATA%/
 config.json
-*.log
 
 ## dossier projet
 docs/
+
 ## LLM models (large files)
 models/
 *.gguf
@@ -65,3 +67,4 @@ NuGet.Config
 *.wixpdb
 *.cub
 *.wixout
+.wix/

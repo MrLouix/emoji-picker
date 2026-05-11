@@ -2,6 +2,7 @@
 
 namespace EmojiPick.Services;
 
+using System.IO;
 using System.IO.Compression;
 using System.Text.Json;
 using EmojiPick.Helpers;
@@ -38,7 +39,7 @@ public static class EmojiMatcher
         try
         {
             var bytes = ResourceLoader.LoadEmbeddedResource(ResourceName);
-            if (bytes is null || bytes.Length == 0) return [];
+            if (bytes is null || bytes.Length == 0) return new List<EmojiEntry>();
 
             using var compressed = new MemoryStream(bytes);
             using var gzip = new GZipStream(compressed, CompressionMode.Decompress);
@@ -46,22 +47,22 @@ public static class EmojiMatcher
             gzip.CopyTo(decompressed);
 
             var json = System.Text.Encoding.UTF8.GetString(decompressed.ToArray());
-            if (string.IsNullOrWhiteSpace(json)) return [];
+            if (string.IsNullOrWhiteSpace(json)) return new List<EmojiEntry>();
 
             return JsonSerializer.Deserialize<List<EmojiEntry>>(json, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
-            }) ?? [];
+            }) ?? new List<EmojiEntry>();
         }
         catch
         {
-            return [];
+            return new List<EmojiEntry>();
         }
     }
 
     public static List<EmojiMatch> GetMatches(string text, int maxResults = DefaultMaxResults, int threshold = DefaultThreshold)
     {
-        if (string.IsNullOrWhiteSpace(text)) return [];
+        if (string.IsNullOrWhiteSpace(text)) return new List<EmojiMatch>();
 
         var key = $"{text.ToLowerInvariant()}|{maxResults}|{threshold}";
 
@@ -98,21 +99,21 @@ public static class EmojiMatcher
         return popular.Count > 0 ? popular : GetHardcodedFallback();
     }
 
-    private static List<EmojiEntry> GetHardcodedFallback() =>
-    [
-        new() { Char = "😀", Name = "grinning face",               Tags = ["happy", "smile"] },
-        new() { Char = "😂", Name = "face with tears of joy",      Tags = ["laugh", "lol"] },
-        new() { Char = "❤️", Name = "red heart",                   Tags = ["love", "heart"] },
-        new() { Char = "👍", Name = "thumbs up",                   Tags = ["good", "ok", "approve"] },
-        new() { Char = "🙏", Name = "folded hands",                Tags = ["thank", "please", "pray"] },
-        new() { Char = "😊", Name = "smiling face",                Tags = ["happy", "blush"] },
-        new() { Char = "🎉", Name = "party popper",                Tags = ["party", "celebrate"] },
-        new() { Char = "🔥", Name = "fire",                        Tags = ["fire", "hot", "lit"] },
-        new() { Char = "✅", Name = "check mark",                  Tags = ["check", "done", "ok"] },
-        new() { Char = "💪", Name = "flexed biceps",               Tags = ["strong", "muscle"] },
-        new() { Char = "😎", Name = "smiling face with sunglasses",Tags = ["cool", "sunglasses"] },
-        new() { Char = "🚀", Name = "rocket",                      Tags = ["rocket", "launch", "space"] },
-    ];
+    private static List<EmojiEntry> GetHardcodedFallback() => new List<EmojiEntry>
+    {
+        new EmojiEntry { Char = "😀", Name = "grinning face",               Tags = new List<string> { "happy", "smile" } },
+        new EmojiEntry { Char = "😂", Name = "face with tears of joy",      Tags = new List<string> { "laugh", "lol" } },
+        new EmojiEntry { Char = "❤️", Name = "red heart",                   Tags = new List<string> { "love", "heart" } },
+        new EmojiEntry { Char = "👍", Name = "thumbs up",                   Tags = new List<string> { "good", "ok", "approve" } },
+        new EmojiEntry { Char = "🙏", Name = "folded hands",                Tags = new List<string> { "thank", "please", "pray" } },
+        new EmojiEntry { Char = "😊", Name = "smiling face",                Tags = new List<string> { "happy", "blush" } },
+        new EmojiEntry { Char = "🎉", Name = "party popper",                Tags = new List<string> { "party", "celebrate" } },
+        new EmojiEntry { Char = "🔥", Name = "fire",                        Tags = new List<string> { "fire", "hot", "lit" } },
+        new EmojiEntry { Char = "✅", Name = "check mark",                  Tags = new List<string> { "check", "done", "ok" } },
+        new EmojiEntry { Char = "💪", Name = "flexed biceps",               Tags = new List<string> { "strong", "muscle" } },
+        new EmojiEntry { Char = "😎", Name = "smiling face with sunglasses",Tags = new List<string> { "cool", "sunglasses" } },
+        new EmojiEntry { Char = "🚀", Name = "rocket",                      Tags = new List<string> { "rocket", "launch", "space" } },
+    };
 
     /// <summary>
     /// Injects a fixed emoji list for unit tests and clears the query cache.
