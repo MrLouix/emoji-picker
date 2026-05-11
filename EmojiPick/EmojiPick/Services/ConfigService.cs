@@ -22,6 +22,9 @@ public static class ConfigService
     public static string CacheDirectory => Path.Combine(ConfigDirectory, "cache");
     public static string ModelDirectory => Path.Combine(ConfigDirectory, "models");
 
+    /// <summary>Current loaded configuration (thread-safe read access).</summary>
+    public static Config Current => _config;
+
     /// <summary>Load config from disk, or create defaults if missing.</summary>
     public static Config Load()
     {
@@ -35,6 +38,13 @@ public static class ConfigService
                     var config = JsonSerializer.Deserialize<Config>(json);
                     if (config != null)
                     {
+                        var defaults = CreateDefaultConfig();
+                        config.App ??= defaults.App;
+                        config.Hotkey ??= defaults.Hotkey;
+                        config.Ui ??= defaults.Ui;
+                        config.Behavior ??= defaults.Behavior;
+                        config.Llm ??= defaults.Llm;
+                        config.Logging ??= defaults.Logging;
                         _config = config;
                         return _config;
                     }
@@ -66,6 +76,7 @@ public static class ConfigService
 
     private static void SaveInternal()
     {
+        EnsureDirectories();
         var options = new JsonSerializerOptions { WriteIndented = true };
         File.WriteAllText(ConfigFilePath, JsonSerializer.Serialize(_config, options));
     }

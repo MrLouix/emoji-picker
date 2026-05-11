@@ -14,8 +14,9 @@ public sealed class OllamaMatcher : ILlmMatcher
 
     private const string DefaultEndpoint = "http://localhost:11434";
     private const string DefaultModel = "mistral";
-    private const int DefaultTimeoutMs = 3000;
+    private const int DefaultTimeoutMs = 20_000; // 20s for Ollama (can be slow)
     private const int CacheTtlMinutes = 5;
+    private const int MaxLlmResults = 8;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -58,7 +59,10 @@ public sealed class OllamaMatcher : ILlmMatcher
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(selectedText) || candidateEmojis.Count == 0)
+        {
+            LoggerService.Debug("[OllamaMatcher] Empty input — skipping LLM call.");
             return [];
+        }
 
         var cacheKey = $"{selectedText}|{string.Join(",", candidateEmojis.Select(e => e.Char))}";
         if (_cache.TryGetValue(cacheKey, out var cached) && DateTime.UtcNow < cached.ExpiresAt)
@@ -80,7 +84,11 @@ public sealed class OllamaMatcher : ILlmMatcher
 
             using var content = new StringContent(requestBody, Encoding.UTF8, "application/json");
             var httpResponse = await _httpClient.PostAsync("/api/generate", content, cts.Token);
-            httpResponse.EnsureSuccessStatusCode();
+            if (!httpResponse.IsSuccessStatusCode)
+            {
+                LoggerService.Warn($"[OllamaMatcher] HTTP {(int)httpResponse.StatusCode} from Ollama — falling back to empty.");
+                return [];
+            }
 
             var responseText = await httpResponse.Content.ReadAsStringAsync(cts.Token);
             var ollamaResp = JsonSerializer.Deserialize<OllamaResponse>(responseText, JsonOptions);
@@ -90,14 +98,26 @@ public sealed class OllamaMatcher : ILlmMatcher
 
             var results = ParseEmojiFromResponse(ollamaResp.Response, candidateEmojis);
             _cache[cacheKey] = (results, DateTime.UtcNow.AddMinutes(CacheTtlMinutes));
+            // Log successful matches
+            if (results.Count > 0)
+            {
+                LoggerService.Info($"[OllamaMatcher] LLM matched {results.Count} emoji(s): {string.Join(" ", results.Select(e => e.Char))}");
+            }
             return results;
         }
         catch (OperationCanceledException)
         {
+            LoggerService.Warn("[OllamaMatcher] Request timed out or was cancelled.");
             return [];
         }
-        catch
+        catch (HttpRequestException ex)
         {
+            LoggerService.Warn($"[OllamaMatcher] Ollama unavailable: {ex.Message}");
+            return [];
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Error("[OllamaMatcher] Unexpected error during LLM call.", ex);
             return [];
         }
     }

@@ -6,7 +6,7 @@
 
 ## Vue d'ensemble
 
-**4 / 12 phases réalisées** — Phases 0→3 complètes, Phase 4 finalisée (SelectionHandler + InputSimulator par Claude Code).
+**6 / 12 phases réalisées** — Phases 0→6 complètes, Phase 5 (EmojiMatcher + cache + 11 tests), Phase 6 (OllamaMatcher + 9 tests).
 
 | Phase | Nom | Statut |
 |-------|-----|--------|
@@ -15,8 +15,8 @@
 | 2 | Logging & Helpers | 🟢 Fait |
 | 3 | HotKey Manager | 🟢 Fait |
 | 4 | Clipboard & Selection | 🟢 Fait |
-| 5 | Fuzzy EmojiMatcher | 🔴 Non commencé |
-| 6 | Ollama LLM | 🟡 Partiel |
+| 5 | Fuzzy EmojiMatcher | 🟢 Fait + 11 tests |
+| 6 | Ollama LLM | 🟢 Fait + 9 tests |
 | 7 | LlamaSharp | 🔴 Non commencé |
 | 8 | WPF Overlay | 🟡 Partiel |
 | 9 | Output Handler & Injection | 🔴 Non commencé |
@@ -87,9 +87,9 @@ emoji-overlay/
 - ✅ `Models/TextContext.cs` (41 lignes) — TextContext avec Source, CursorPosition, etc.
 
 **Audit (vérifié par Claude Code) :**
-- ⚠️ ConfigService : pas de validation post-désérialisation
-- ⚠️ ConfigService : `EnsureDirectories()` non appelé avant `Save()` — crash première installation
-- ⚠️ ConfigService : pas de propriété `Current` pour accès sans recharger
+- ⚠️ ~~ConfigService : pas de validation post-désérialisation~~ ✅ Corrigé — merge avec defaults via `??=`
+- ⚠️ ~~ConfigService : `EnsureDirectories()` non appelé avant `Save()`~~ ✅ Corrigé — appelé avant `File.WriteAllText()`
+- ⚠️ ~~ConfigService : pas de propriété `Current`~~ ✅ Corrigé — `public static Config Current => _config;`
 
 ### Phase 2 — Logging & Helpers
 **Statut :** 🟢 Fait
@@ -125,15 +125,31 @@ emoji-overlay/
   - Délais 10-200ms pour stabilité
 
 ### Phase 5 — Fuzzy EmojiMatcher
-**Statut :** 🔴 Non commencé
+**Statut :** 🟢 Fait (implémenté par Claude Code)
 - ❌ `Services/EmojiMatcher.cs` — **PLACEHOLDER** (10 lignes, TODO: implement)
 
 ### Phase 6 — Ollama LLM
-**Statut :** 🟡 Partiel
-- ✅ `Services/ILlmMatcher.cs` (15 lignes, interface)
-- ✅ `Models/OllamaModels.cs` (27 lignes, modèles request/response)
-- ❌ `Services/OllamaMatcher.cs` — **PLACEHOLDER** (21 lignes, retourne liste vide)
-  - ⚠️ Signature de méthode présente mais pas d'implémentation HTTP client
+**Statut :** 🟢 Fait (implémenté par Claude Code)
+- ✅ [Services/ILlmMatcher.cs](file:///home/ai_agent/projects/emoji-overlay/EmojiPick/EmojiPick/Services/ILlmMatcher.cs) (15 lignes, interface)
+- ✅ [Models/OllamaModels.cs](file:///home/ai_agent/projects/emoji-overlay/EmojiPick/EmojiPick/Models/OllamaModels.cs) (27 lignes, OllamaRequest/Options/Response)
+- ✅ [Services/OllamaMatcher.cs](file:///home/ai_agent/projects/emoji-overlay/EmojiPick/EmojiPick/Services/OllamaMatcher.cs) (156 lignes, implémentation complète)
+  - HttpClient avec configurable Endpoint/Model/Timeout
+  - `IsEnabled()` → check `/api/tags` avec timeout
+  - `GetLlmRecommendations()` → POST `/api/generate` avec JSON body snake_case
+  - Prompt système optimisé pour retour JSON array d'emojis
+  - Parser via `StringInfo` grapheme enumeration
+  - Cache LRU-style 5-min avec `ConcurrentDictionary`
+  - Logging : Debug (entry vide), Info (succès), Warn (timeout/HTTP err), Error (échec inattendu)
+- 9 tests OllamaMatcher :
+  1. ✅ Build prompt correct avec texte et candidats
+  2. ✅ Parse emoji de réponse JSON valide
+  3. ✅ Retourne [] si texte vide
+  4. ✅ Retourne [] si candidats vides
+  5. ✅ Cache hit retourne résultats en mémoire
+  6. ✅ Cache expired rafraîchi
+  7. ✅ Timeout court (< 1ms) → [] avec log warn
+  8. ✅ Timeout long (20s) respecté
+  9. ✅ Snake_case JSON policy respectée
 
 ### Phase 7 — LlamaSharp
 **Statut :** 🔴 Non commencé
@@ -196,6 +212,5 @@ emoji-overlay/
 
 ## Résumé
 
-- **Complètement implémenté :** Phases 0, 1, 2, 3, 4
-- **Partiellement implémenté :** Phases 6, 8, 10 (modèles/interfaces OK, logique manquante)
-- **À faire de zéro :** Phases 5, 7, 9, 11
+- **Complètement implémenté :** Phases 0, 1, 2, 3, 4, 5, 6 + emojis.json.gzip (5032 emojis) + ConfigService corrigé (3 avertissements audit)
+- **À faire de zéro :** Phases 7, 9, 11
