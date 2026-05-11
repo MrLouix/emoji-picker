@@ -33,6 +33,8 @@ dist/
 config.json
 *.log
 
+## dossier docs — contient documentation et plans (ne pas ignorer)
+
 ## LLM models (large files)
 models/
 *.gguf
