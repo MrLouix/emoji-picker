@@ -121,5 +121,38 @@ if ($buildErrors) {
 Write-Log ""
 Write-Log "Log complet : $LogPath" Gray
 Write-Log "Tape ./Build.ps1 -Publish pour générer un dossier publish prêt à déployer." Gray
+Write-Log "Tape ./Build.ps1 -Installer pour générer l'installeur MSI (WiX v4)." Gray
 Write-Log "Tape ./Build.ps1 -Clean pour nettoyer avant la compilation." Gray
 Write-Log ""
+
+# --- 7. Installer optionnel (WiX MSI) --------------------------------------
+if ($Installer) {
+    $InstallerPath = Join-Path $ScriptDir "EmojiPick.Installer\EmojiPick.wixproj"
+    if (-not (Test-Path $InstallerPath)) {
+        Write-Log "[ERREUR] Projet WiX introuvable : $InstallerPath" Red
+        exit 1
+    }
+    Write-Log ""
+    Write-Log "[...]  Génération de l'installeur MSI (WiX v4)..." Yellow
+    $installerResult = dotnet build $InstallerPath -c Release --nologo 2>&1
+    $installerResult | Out-File $LogPath -Encoding utf8 -Append
+    if ($LASTEXITCODE -ne 0) {
+        Write-Log "[ERREUR] La génération de l'installeur a échoué." Red
+        exit 1
+    }
+    Write-Log "[OK]   Installeur généré." Green
+    $msiPath = Join-Path $ScriptDir "EmojiPick.Installer\bin\Release\netstandard2.0\EmojiPickerSetup.msi"
+    if (Test-Path $msiPath) {
+        $size = [math]::Round((Get-Item $msiPath).Length / 1MB, 2)
+        Write-Log "       MSI : $msiPath ($size MB)" Green
+    } else {
+        # Alternative path for SDK output
+        $msiAlt = Join-Path $ScriptDir "EmojiPick.Installer\bin\Release\EmojiPickerSetup.msi"
+        if (Test-Path $msiAlt) {
+            $size = [math]::Round((Get-Item $msiAlt).Length / 1MB, 2)
+            Write-Log "       MSI : $msiAlt ($size MB)" Green
+        } else {
+            Write-Log "[WARN] MSI non trouvé dans les chemins habituels. Vérifie le dossier bin." Yellow
+        }
+    }
+}
