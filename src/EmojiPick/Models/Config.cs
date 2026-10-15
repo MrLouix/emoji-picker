@@ -62,6 +62,8 @@ public class BehaviorConfig
 
     /// <summary>Minimum fuzzy score (0..1) for a result to be shown.</summary>
     public double FuzzyThreshold { get; set; } = 0.6;
+
+    /// <summary>Number of results; the picker shows at least enough to fill its visible rows.</summary>
     public int MaxResults { get; set; } = 18;
 }
 

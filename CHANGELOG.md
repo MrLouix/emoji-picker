@@ -42,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - With text selected, the emoji is inserted after the selection instead of replacing it
 - Browsers: Ctrl+C is tried whenever UI Automation reports no selection, since web editors such as
   Google Docs often report only the caret; the selection was picked up only some of the time
+- "Visible rows" now shows more emoji: there are always enough results to fill the visible grid
+  (columns × rows, or `behavior.maxResults` if higher). Before, extra rows only spread the same rows
+  apart; a short result list now stays at the top
+- The emoji grid no longer scrolls by 2px (padding of the default list template)
 
 ### Changed (versioning and updates)
 - Every `Build.ps1` build gets a new version `major.minor.N`: `major.minor` from `VERSION`, `N` + 1 per

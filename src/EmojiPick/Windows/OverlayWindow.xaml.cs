@@ -70,7 +70,8 @@ public partial class OverlayWindow : System.Windows.Window
         _config = ConfigService.Current;
         _columns = _config.Ui.GridColumns;
         _visibleRows = _config.Ui.GridRows;
-        _maxResults = _config.Behavior.MaxResults;
+        // Enough results to fill every visible row (ui.gridRows), more when behavior.maxResults asks for it.
+        _maxResults = Math.Max(_config.Behavior.MaxResults, _columns * _visibleRows);
         _threshold = (int)Math.Round(_config.Behavior.FuzzyThreshold * 100);
         _contextQuery = BuildContextQuery(context);
         _language = L.ContentLanguage;
@@ -129,6 +130,8 @@ public partial class OverlayWindow : System.Windows.Window
 
         var panel = new FrameworkElementFactory(typeof(UniformGrid));
         panel.SetValue(UniformGrid.ColumnsProperty, _columns);
+        // A partial last page keeps its row height instead of spreading over the visible rows.
+        panel.SetValue(VerticalAlignmentProperty, VerticalAlignment.Top);
         EmojiList.ItemsPanel = new ItemsPanelTemplate(panel);
 
         double cell = tile + 4; // tile margin

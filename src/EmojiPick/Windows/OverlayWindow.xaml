@@ -249,10 +249,19 @@
                              Background="Transparent" BorderThickness="0" Padding="0"
                              Focusable="False"
                              ItemContainerStyle="{StaticResource TileStyle}"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                             ScrollViewer.VerticalScrollBarVisibility="Hidden"
-                             ScrollViewer.CanContentScroll="False"
                              KeyboardNavigation.TabNavigation="None">
+                        <!-- The default template adds 1px of padding: the grid was 2px taller than the
+                             viewport and scrolled slightly -->
+                        <ListBox.Template>
+                            <ControlTemplate TargetType="ListBox">
+                                <ScrollViewer Focusable="False"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              VerticalScrollBarVisibility="Hidden"
+                                              CanContentScroll="False">
+                                    <ItemsPresenter />
+                                </ScrollViewer>
+                            </ControlTemplate>
+                        </ListBox.Template>
                     </ListBox>
 
                     <StackPanel x:Name="EmptyState" VerticalAlignment="Center" HorizontalAlignment="Center"

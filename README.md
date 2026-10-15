@@ -151,7 +151,7 @@ Restart EmojiPick after editing the file by hand.
     "injectMode": "paste",      // "paste" | "type" (Unicode keystrokes) | "clipboard"
     "restoreClipboard": true,   // put the previous clipboard back after pasting
     "fuzzyThreshold": 0.6,
-    "maxResults": 18
+    "maxResults": 18            // never fewer than gridColumns × gridRows, so the visible grid is full
   },
   "language": "auto",           // UI and emoji-name language ("en", "fr", or "auto" = Windows language)
   "llm": {
