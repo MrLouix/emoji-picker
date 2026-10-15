@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-15
+
 ### Added
 - Initial project scaffolding (Phase 0)
 - Solution structure: `EmojiPick/` (WPF app) + `EmojiPick.Installer/` (WiX MSI)
@@ -83,18 +85,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Injection modes `paste`, `type` (Unicode keystrokes, clipboard untouched) and `clipboard`; Shift+Enter copies only
 - Tray menu: open picker (also left-click), start with Windows, open settings file / logs folder
 - Single-instance guard, global exception logging
-
-## [1.0.0] - TBD
-
-*Initial release — not yet tagged.*
-
-### Planned Features
-- Global hotkey (`Ctrl+Alt+E`, configurable)
-- Emoji overlay picker with keyboard + mouse navigation
-- Fuzzy matching (Levenshtein distance on emoji tags)
-- LLM integration (Ollama HTTP + llama.cpp embedded)
-- Smart context detection (selected text OR cursor context via UI Automation)
-- Clipboard-based emoji injection (SendInput Ctrl+V)
-- System tray icon with context menu
-- Auto-start on Windows login
-- MSI installer (WiX Toolset)
