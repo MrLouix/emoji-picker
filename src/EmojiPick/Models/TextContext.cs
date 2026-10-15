@@ -26,6 +26,17 @@ public class TextContext
 
     /// <summary>Whether the text came from clipboard (selection) vs Accessibility API (context)</summary>
     public bool IsFromClipboard { get; set; }
+
+    /// <summary>Caret bounds in physical screen pixels, when the target application exposes them.</summary>
+    public ScreenRect? Caret { get; set; }
+
+    public static TextContext Empty => new();
+}
+
+/// <summary>Rectangle in physical screen pixels.</summary>
+public readonly record struct ScreenRect(int Left, int Top, int Width, int Height)
+{
+    public int Bottom => Top + Height;
 }
 
 public enum TextSource

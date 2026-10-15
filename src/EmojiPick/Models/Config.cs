@@ -12,7 +12,8 @@ public class Config
     public BehaviorConfig Behavior { get; set; } = new();
     public LlmConfig Llm { get; set; } = new();
     public LoggingConfig Logging { get; set; } = new();
-    public string Language { get; set; } = "en";
+    /// <summary>Language of emoji names ("en", "fr"…) or "auto" for the Windows display language.</summary>
+    public string Language { get; set; } = "auto";
 }
 
 public class AppConfig
@@ -30,20 +31,32 @@ public class HotKeyConfig
 
 public class UiConfig
 {
-    public string Theme { get; set; } = "dark";
+    /// <summary>"dark", "light" or "system" (follows the Windows app theme).</summary>
+    public string Theme { get; set; } = "system";
     public int FontSize { get; set; } = 24;
-    public double WindowOpacity { get; set; } = 0.95;
-    public int GridColumns { get; set; } = 4;
-    public int GridRows { get; set; } = 3;
-    public string PositionMode { get; set; } = "center";
+    public double WindowOpacity { get; set; } = 0.97;
+    public int GridColumns { get; set; } = 7;
+
+    /// <summary>Number of visible rows; extra results are reachable by scrolling.</summary>
+    public int GridRows { get; set; } = 4;
+
+    /// <summary>"caret" (text cursor, falls back to mouse), "cursor" (mouse) or "center" (screen).</summary>
+    public string PositionMode { get; set; } = "caret";
 }
 
 public class BehaviorConfig
 {
     public bool AutoClose { get; set; } = true;
+
+    /// <summary>"paste" (clipboard + Ctrl+V), "type" (Unicode keystrokes) or "clipboard" (copy only).</summary>
     public string InjectMode { get; set; } = "paste";
+
+    /// <summary>Restore the previous clipboard content after pasting an emoji.</summary>
+    public bool RestoreClipboard { get; set; } = true;
+
+    /// <summary>Minimum fuzzy score (0..1) for a result to be shown.</summary>
     public double FuzzyThreshold { get; set; } = 0.6;
-    public int MaxResults { get; set; } = 12;
+    public int MaxResults { get; set; } = 42;
 }
 
 public class LlmConfig

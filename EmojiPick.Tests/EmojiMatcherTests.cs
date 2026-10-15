@@ -45,10 +45,50 @@ public class EmojiMatcherTests : IDisposable
     }
 
     [Fact]
-    public void LoadFromEmbeddedResource_PlaceholderData_ReturnsEmptyMatches()
+    public void LoadFromEmbeddedResource_RealData_ReturnsRenderableEmoji()
     {
         EmojiMatcher.SetEmojisForTesting(null);
-        Assert.Empty(EmojiMatcher.GetMatches("happy"));
+        var results = EmojiMatcher.GetMatches("pizza");
+        Assert.NotEmpty(results);
+        Assert.Equal("🍕", results[0].Emoji.Char);
+        Assert.All(results, m => Assert.False(string.IsNullOrEmpty(m.Emoji.Char)));
+    }
+
+    [Fact]
+    public void LoadFromEmbeddedResource_SkipsSkinToneAndUnqualifiedVariants()
+    {
+        EmojiMatcher.SetEmojisForTesting(null);
+        var results = EmojiMatcher.GetMatches("thumbs", maxResults: 50);
+        Assert.Contains(results, m => m.Emoji.Char == "👍");
+        Assert.DoesNotContain(results, m => m.Emoji.Name.Contains("skin tone"));
+        Assert.Equal(results.Count, results.Select(m => m.Emoji.Char).Distinct().Count());
+    }
+
+    [Fact]
+    public void FilterDisplayable_RemovesDuplicatesComponentsAndEmptyChars()
+    {
+        var entries = new List<EmojiEntry>
+        {
+            new() { Char = "☺️", Name = "smiling face", Category = "fully-qualified" },
+            new() { Char = "☺", Name = "smiling face", Category = "unqualified" },
+            new() { Char = "🏻", Name = "light skin tone", Category = "component" },
+            new() { Char = "👍🏻", Name = "thumbs up: light skin tone", Category = "fully-qualified" },
+            new() { Char = "", Name = "broken", Category = "fully-qualified" },
+            new() { Char = "☺️", Name = "smiling face", Category = "fully-qualified" },
+        };
+
+        var filtered = EmojiMatcher.FilterDisplayable(entries);
+
+        Assert.Single(filtered);
+        Assert.Equal("☺️", filtered[0].Char);
+    }
+
+    [Fact]
+    public void FindByChar_ReturnsMatchingEntry()
+    {
+        EmojiMatcher.SetEmojisForTesting(MakeTestEmojis());
+        Assert.Equal("fire", EmojiMatcher.FindByChar("🔥")?.Name);
+        Assert.Null(EmojiMatcher.FindByChar("🦄"));
     }
 
     // ── Empty / whitespace text ─────────────────────────────────────────────

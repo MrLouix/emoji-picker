@@ -1,36 +1,224 @@
 <Window x:Class="EmojiPick.Windows.OverlayWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
         Title="EmojiPick"
-        Width="400" Height="320"
+        SizeToContent="WidthAndHeight"
         WindowStyle="None"
         AllowsTransparency="True"
-        Background="#E6222233"
+        Background="Transparent"
         Topmost="True"
         ShowInTaskbar="False"
         ResizeMode="NoResize"
         Focusable="True"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display"
+        FontFamily="Segoe UI Variable Text, Segoe UI"
         WindowStartupLocation="Manual">
-    <Grid Margin="10">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
 
-        <TextBlock x:Name="CtxLabel" Grid.Row="0"
-                   Foreground="White" FontSize="12"
-                   MaxWidth="370" TextTrimming="CharacterEllipsis"
-                   Margin="0,0,0,6" />
+    <!--
+        Colors are DynamicResources so the code-behind can switch between the dark and light
+        palettes (ui.theme = "dark" | "light" | "system"). Values below are the dark defaults.
+    -->
+    <Window.Resources>
+        <SolidColorBrush x:Key="SurfaceBrush" Color="#F71C1D24" />
+        <SolidColorBrush x:Key="SurfaceAltBrush" Color="#2A2C36" />
+        <SolidColorBrush x:Key="StrokeBrush" Color="#3A3D4A" />
+        <SolidColorBrush x:Key="TextBrush" Color="#F2F3F7" />
+        <SolidColorBrush x:Key="MutedBrush" Color="#9A9DAD" />
+        <SolidColorBrush x:Key="AccentBrush" Color="#8B7CFF" />
+        <SolidColorBrush x:Key="AccentSoftBrush" Color="#408B7CFF" />
+        <SolidColorBrush x:Key="HoverBrush" Color="#1FFFFFFF" />
+        <sys:Double x:Key="EmojiFontSize">24</sys:Double>
+        <sys:Double x:Key="TileSize">46</sys:Double>
 
-        <UniformGrid x:Name="EmojiGrid" Grid.Row="1"
-                     Rows="4" Columns="4"
-                     HorizontalAlignment="Center" VerticalAlignment="Center" />
+        <FontFamily x:Key="EmojiFont">Segoe UI Emoji</FontFamily>
+        <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 
-        <TextBox x:Name="SearchBox" Grid.Row="2"
-                 Background="#222233" Foreground="White"
-                 Padding="8,6" FontSize="14"
-                 BorderThickness="0"
-                 Margin="0,6,0,0" />
+        <!-- Emoji tile: rounded, soft hover, accent ring when selected -->
+        <Style x:Key="TileStyle" TargetType="ListBoxItem">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Tile"
+                                Width="{DynamicResource TileSize}" Height="{DynamicResource TileSize}"
+                                Margin="2" CornerRadius="10"
+                                Background="Transparent"
+                                BorderBrush="Transparent" BorderThickness="1.5">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Tile" Property="Background" Value="{DynamicResource HoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Tile" Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+                                <Setter TargetName="Tile" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Small keyboard-key chip used in the footer hints -->
+        <Style x:Key="KeyChip" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource StrokeBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="5,0" />
+            <Setter Property="Margin" Value="8,0,4,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style x:Key="KeyText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="10.5" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <!-- Borderless "x" button inside the search field -->
+        <Style x:Key="ClearButton" TargetType="Button">
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Width="22" Height="22" CornerRadius="11" Background="Transparent">
+                            <TextBlock Text="&#xE711;" FontFamily="{StaticResource IconFont}" FontSize="10"
+                                       Foreground="{DynamicResource MutedBrush}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="{DynamicResource HoverBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <!-- Outer margin leaves room for the drop shadow -->
+    <Grid x:Name="Root" Margin="16" Opacity="0">
+        <Grid.RenderTransform>
+            <TranslateTransform x:Name="RootTranslate" />
+        </Grid.RenderTransform>
+
+        <!-- Shadow lives on its own layer so text stays crisp (effects blur their content) -->
+        <Border CornerRadius="14" Background="{DynamicResource SurfaceBrush}">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="24" ShadowDepth="6" Direction="270" Opacity="0.35" Color="Black" />
+            </Border.Effect>
+        </Border>
+
+        <Border CornerRadius="14" Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="1"
+                Padding="12,12,12,8">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Search field -->
+                <Border Grid.Row="0" CornerRadius="9" Height="36"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="1">
+                    <Grid Margin="10,0,6,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0" Text="&#xE721;" FontFamily="{StaticResource IconFont}" FontSize="13"
+                                   Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+
+                        <TextBlock x:Name="Placeholder" Grid.Column="1" Text="Search emoji…"
+                                   Foreground="{DynamicResource MutedBrush}" FontSize="14"
+                                   VerticalAlignment="Center" Margin="2,0,0,0" IsHitTestVisible="False" />
+
+                        <TextBox x:Name="SearchBox" Grid.Column="1"
+                                 Background="Transparent" BorderThickness="0"
+                                 Foreground="{DynamicResource TextBrush}"
+                                 CaretBrush="{DynamicResource AccentBrush}"
+                                 SelectionBrush="{DynamicResource AccentBrush}"
+                                 FontSize="14" VerticalAlignment="Center" Padding="0" />
+
+                        <Button x:Name="ClearButton" Grid.Column="2" Style="{StaticResource ClearButton}"
+                                Visibility="Collapsed" ToolTip="Clear (Esc)" Margin="4,0,0,0" />
+                    </Grid>
+                </Border>
+
+                <!-- Section title: what the results are based on, plus AI status -->
+                <DockPanel Grid.Row="1" Margin="4,12,4,6" LastChildFill="True">
+                    <TextBlock x:Name="AiBadge" DockPanel.Dock="Right" FontSize="11"
+                               Foreground="{DynamicResource AccentBrush}" Visibility="Collapsed"
+                               VerticalAlignment="Center" Margin="8,0,0,0" />
+                    <TextBlock x:Name="SectionLabel" FontSize="11" FontWeight="SemiBold"
+                               Foreground="{DynamicResource MutedBrush}"
+                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                </DockPanel>
+
+                <!-- Emoji grid; size is set from the config (columns × visible rows) -->
+                <Grid Grid.Row="2">
+                    <ListBox x:Name="EmojiList"
+                             Background="Transparent" BorderThickness="0" Padding="0"
+                             Focusable="False"
+                             ItemContainerStyle="{StaticResource TileStyle}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Hidden"
+                             ScrollViewer.CanContentScroll="False"
+                             KeyboardNavigation.TabNavigation="None">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Char}"
+                                           FontFamily="{StaticResource EmojiFont}"
+                                           FontSize="{DynamicResource EmojiFontSize}"
+                                           Foreground="{DynamicResource TextBrush}"
+                                           TextOptions.TextRenderingMode="Grayscale" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <StackPanel x:Name="EmptyState" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                Visibility="Collapsed" IsHitTestVisible="False">
+                        <TextBlock Text="🔍" FontFamily="{StaticResource EmojiFont}" FontSize="28"
+                                   Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center" />
+                        <TextBlock x:Name="EmptyText" Margin="0,8,0,0" FontSize="13"
+                                   Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center"
+                                   TextAlignment="Center" TextWrapping="Wrap" MaxWidth="260" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Footer: preview of the highlighted emoji + keyboard hints -->
+                <Border Grid.Row="3" Margin="-12,8,-12,0" Padding="14,8,12,0"
+                        BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="0,1,0,0">
+                    <DockPanel LastChildFill="True" Height="30">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Style="{StaticResource KeyChip}"><TextBlock Text="↵" Style="{StaticResource KeyText}" /></Border>
+                            <TextBlock Text="insert" Style="{StaticResource KeyText}" />
+                            <Border Style="{StaticResource KeyChip}"><TextBlock Text="⇧↵" Style="{StaticResource KeyText}" /></Border>
+                            <TextBlock Text="copy" Style="{StaticResource KeyText}" />
+                            <Border Style="{StaticResource KeyChip}"><TextBlock Text="Esc" Style="{StaticResource KeyText}" /></Border>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock x:Name="PreviewChar" FontFamily="{StaticResource EmojiFont}" FontSize="20"
+                                       Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <TextBlock x:Name="PreviewName" FontSize="12.5" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" MaxWidth="170" />
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

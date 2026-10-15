@@ -116,31 +116,35 @@ This produces `EmojiPickerSetup.msi` in the `EmojiPick.Installer/bin/Release/` f
 
 ## Configuration
 
-User configuration is stored at `%APPDATA%\EmojiPick\config.json`:
+User configuration is stored at `%APPDATA%\EmojiPick\config.json` (tray menu → *Open settings file*).
+Property names are case-insensitive; invalid values are clamped and an unreadable file is backed up to `config.json.bak`.
+Restart EmojiPick after editing.
 
 ```json
 {
-  "hotkey": {
-    "modifiers": ["Ctrl", "Alt"],
-    "key": "E"
+  "hotkey": { "modifiers": ["Ctrl", "Alt"], "key": "E" },
+  "ui": {
+    "theme": "system",          // "dark" | "light" | "system"
+    "fontSize": 24,
+    "windowOpacity": 0.97,
+    "gridColumns": 7,
+    "gridRows": 4,              // visible rows, more results scroll
+    "positionMode": "caret"     // "caret" | "cursor" | "center"
   },
+  "behavior": {
+    "injectMode": "paste",      // "paste" | "type" (Unicode keystrokes) | "clipboard"
+    "restoreClipboard": true,   // put the previous clipboard back after pasting
+    "fuzzyThreshold": 0.6,
+    "maxResults": 42
+  },
+  "language": "auto",           // language of emoji names in the footer ("en", "fr", or "auto")
   "llm": {
     "enabled": true,
-    "provider": "auto",
-    "fallback_chain": ["ollama", "llamacpp", "fuzzy"],
     "providers": {
-      "ollama": {
-        "endpoint": "http://localhost:11434",
-        "model": "mistral",
-        "timeout_ms": 3000
-      },
-      "llamacpp": {
-        "model_path": "%APPDATA%/EmojiPick/models/Mistral-7B-Q4_K_M.gguf",
-        "use_gpu": true,
-        "gpu_layers": 20
-      }
+      "ollama": { "enabled": true, "endpoint": "http://localhost:11434", "model": "mistral", "timeoutMs": 3000 }
     }
-  }
+  },
+  "logging": { "level": "info" }
 }
 ```
 
@@ -148,11 +152,15 @@ User configuration is stored at `%APPDATA%\EmojiPick\config.json`:
 
 | Key | Action |
 |-----|--------|
-| `↑` `↓` `←` `→` | Navigate emoji grid |
-| `Enter` | Select & inject emoji |
-| `Escape` | Close overlay |
-| `Ctrl+C` | Copy selected emoji to clipboard |
-| `Backspace` | Clear search input |
+| *type* | Search (English or French keywords, accents optional) |
+| `↑` `↓` `←` `→` / `Tab` | Navigate emoji grid |
+| `PageUp` / `PageDown` | Jump one page of results |
+| `Enter` / click | Insert emoji at the cursor |
+| `Shift+Enter` / right-click | Copy emoji to clipboard only |
+| `Escape` | Clear search, press again to close |
+| Hotkey again | Close the picker |
+
+When no text is selected, the picker shows your recently used emoji.
 
 ## Project Structure
 
@@ -193,13 +201,24 @@ EmojiPick supports a **fallback chain** — it tries providers in order until on
 dotnet test EmojiPick.Tests/EmojiPick.Tests.csproj
 ```
 
+## Emoji Database
+
+`src/EmojiPick/Data/emojis.json.gzip` holds one fully-qualified entry per emoji, enriched with
+[Unicode CLDR](https://github.com/unicode-org/cldr-json) keywords and names (English + French).
+To regenerate it (e.g. to add a language), download the CLDR annotation files and run:
+
+```bash
+python3 tools/build_emoji_db.py <cldr-dir> en fr
+```
+
 ## Roadmap
 
 - [ ] Skin tone support (👍🏻👍🏼👍🏽👍🏾👍🏿)
-- [ ] Usage history & frequently used emoji
+- [x] Usage history (recently used emoji)
 - [ ] Configuration UI panel (instead of editing JSON)
-- [ ] Multi-language support (FR, DE, ES, JP)
-- [ ] Themes (dark/light)
+- [x] French keywords & names (CLDR) — [ ] DE, ES, JP, localized UI
+- [x] Themes (dark/light/system)
+- [ ] Color emoji rendering (WPF draws monochrome glyphs; e.g. via Emoji.Wpf)
 - [ ] Custom emoji collections
 - [ ] Statistics dashboard
 

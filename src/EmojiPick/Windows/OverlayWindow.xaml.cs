@@ -1,242 +1,530 @@
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using EmojiPick.Models;
 using EmojiPick.Services;
-using Brushes = System.Windows.Media.Brushes;
-using Button = System.Windows.Controls.Button;
+using Microsoft.Win32;
 using Color = System.Windows.Media.Color;
-using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
-using Orientation = System.Windows.Controls.Orientation;
+using MouseEventArgs = System.Windows.Input.MouseEventArgs;
+using Point = System.Windows.Point;
 
 namespace EmojiPick.Windows;
 
 public partial class OverlayWindow : System.Windows.Window
 {
-    private readonly SelectionHandler _selectionHandler;
-    private List<EmojiMatch> _matches = new List<EmojiMatch>();
-    private int _selectedIndex = -1;
-    private int _gridColumns = 4;
+    private const int LlmCandidateCount = 40;
+    private const int MaxLabelQueryLength = 32;
 
-    public TextContext? InitialContext { get; private set; }
+    private readonly TextContext _context;
+    private readonly ILlmMatcher? _llm;
+    private readonly Config _config;
+    private readonly int _columns;
+    private readonly int _visibleRows;
+    private readonly int _maxResults;
+    private readonly int _threshold;
+    private readonly string _contextQuery;
+    private readonly string _language;
+    private readonly ObservableCollection<EmojiEntry> _items = new();
+
+    private CancellationTokenSource? _llmCts;
+    private Point? _lastMousePosition;
+    private bool _isClosing;
+    private bool _userNavigated;
+
+    public TextContext InitialContext => _context;
     public string? SelectedEmoji { get; private set; }
 
-    public OverlayWindow(SelectionHandler selectionHandler)
+    /// <summary>True when the user asked to copy the emoji instead of inserting it.</summary>
+    public bool CopyOnly { get; private set; }
+
+    public OverlayWindow(TextContext context, ILlmMatcher? llm = null)
     {
-        _selectionHandler = selectionHandler;
+        _context = context;
+        _llm = llm;
+        _config = ConfigService.Current;
+        _columns = _config.Ui.GridColumns;
+        _visibleRows = _config.Ui.GridRows;
+        _maxResults = _config.Behavior.MaxResults;
+        _threshold = (int)Math.Round(_config.Behavior.FuzzyThreshold * 100);
+        _contextQuery = BuildContextQuery(context);
+        _language = ResolveLanguage(_config.Language);
+
         InitializeComponent();
 
-        SearchBox.TextChanged += SearchBox_TextChanged;
-        KeyDown += OverlayWindow_KeyDown;
-        PreviewKeyDown += OverlayWindow_KeyDown;
-        Deactivated += OverlayWindow_Deactivated;
+        ApplyTheme();
+        ConfigureGrid();
 
-        var config = ConfigService.Current;
-        _gridColumns = config.Ui.GridColumns;
-        EmojiGrid.Columns = _gridColumns;
-        EmojiGrid.Rows = config.Ui.GridRows;
+        EmojiList.ItemsSource = _items;
+        Placeholder.Text = _contextQuery.Length > 0 ? "Refine or search emoji…" : "Search emoji…";
 
-        var alpha = (byte)(config.Ui.WindowOpacity * 255);
-        Background = new SolidColorBrush(Color.FromArgb(alpha, 0x22, 0x22, 0x33));
+        SearchBox.TextChanged += (_, _) => OnSearchChanged();
+        ClearButton.Click += (_, _) => { SearchBox.Clear(); SearchBox.Focus(); };
+        EmojiList.PreviewMouseLeftButtonUp += (_, e) => OnTileClicked(e, copyOnly: Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+        EmojiList.PreviewMouseRightButtonUp += (_, e) => OnTileClicked(e, copyOnly: true);
+        EmojiList.MouseMove += OnListMouseMove;
+
+        PreviewKeyDown += OnPreviewKeyDown;
+        Deactivated += (_, _) => { if (!_isClosing) Close(); };
+        Closing += (_, _) =>
+        {
+            _isClosing = true;
+            _llmCts?.Cancel();
+        };
+        Loaded += OnLoaded;
+
+        RefreshResults();
     }
 
-    public void PositionAtCursor()
+    // ─── Setup ────────────────────────────────────────────────────────────────
+
+    private void ConfigureGrid()
     {
-        var pos = System.Windows.Forms.Cursor.Position;
-        Left = pos.X - (Width / 2);
-        Top = pos.Y + 16;
+        double emojiSize = _config.Ui.FontSize;
+        double tile = Math.Round(emojiSize + 22);
+        Resources["EmojiFontSize"] = emojiSize;
+        Resources["TileSize"] = tile;
+
+        var panel = new FrameworkElementFactory(typeof(UniformGrid));
+        panel.SetValue(UniformGrid.ColumnsProperty, _columns);
+        EmojiList.ItemsPanel = new ItemsPanelTemplate(panel);
+
+        double cell = tile + 4; // tile margin
+        EmojiList.Width = _columns * cell;
+        EmojiList.Height = _visibleRows * cell;
     }
 
-    public async Task InitializeAsync()
+    private void ApplyTheme()
     {
-        InputSimulator.SendCtrlC();
-        await Task.Delay(150);
+        var palette = UseLightTheme(_config.Ui.Theme) ? Palette.Light : Palette.Dark;
+        var surface = palette.Surface;
+        surface.A = (byte)Math.Round(_config.Ui.WindowOpacity * 255);
 
-        InitialContext = _selectionHandler.GetTextContext();
+        Resources["SurfaceBrush"] = Freeze(surface);
+        Resources["SurfaceAltBrush"] = Freeze(palette.SurfaceAlt);
+        Resources["StrokeBrush"] = Freeze(palette.Stroke);
+        Resources["TextBrush"] = Freeze(palette.Text);
+        Resources["MutedBrush"] = Freeze(palette.Muted);
+        Resources["AccentBrush"] = Freeze(palette.Accent);
+        Resources["AccentSoftBrush"] = Freeze(Color.FromArgb(0x40, palette.Accent.R, palette.Accent.G, palette.Accent.B));
+        Resources["HoverBrush"] = Freeze(palette.Hover);
+    }
 
-        var text = InitialContext?.Text ?? "";
-        var display = text.Length > 40
-            ? text[..40]
-            : text;
-        CtxLabel.Text = display;
+    private static bool UseLightTheme(string theme)
+    {
+        switch (theme.Trim().ToLowerInvariant())
+        {
+            case "light": return true;
+            case "dark": return false;
+            default:
+                try
+                {
+                    using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+                    return key?.GetValue("AppsUseLightTheme") is int value && value != 0;
+                }
+                catch
+                {
+                    return false;
+                }
+        }
+    }
 
-        var query = text.Trim();
-        _matches = string.IsNullOrEmpty(query) ? new List<EmojiMatch>() : EmojiMatcher.GetMatches(query);
+    private static SolidColorBrush Freeze(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
+    }
 
-        RenderGrid();
-        PositionAtCursor();
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        bool above = PositionWindow();
+
+        var duration = TimeSpan.FromMilliseconds(140);
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        Root.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, duration) { EasingFunction = ease });
+        RootTranslate.BeginAnimation(TranslateTransform.YProperty,
+            new DoubleAnimation(above ? -8 : 8, 0, duration) { EasingFunction = ease });
+
         SearchBox.Focus();
+        Keyboard.Focus(SearchBox);
     }
 
-    private void RenderGrid()
+    // ─── Positioning ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Places the window next to the text caret (or mouse cursor), flipping above it when there
+    /// is no room below and keeping it inside the monitor's working area.
+    /// Screen APIs return physical pixels while WPF uses DIPs, hence the DPI conversion.
+    /// Returns true when the window was placed above the anchor.
+    /// </summary>
+    private bool PositionWindow()
     {
-        EmojiGrid.Children.Clear();
-        int maxItems = _gridColumns * EmojiGrid.Rows;
+        var dpi = VisualTreeHelper.GetDpi(this);
+        const int shadowMargin = 16;
 
-        for (int i = 0; i < maxItems; i++)
+        var mouse = System.Windows.Forms.Cursor.Position;
+        var mode = _config.Ui.PositionMode.Trim().ToLowerInvariant();
+
+        int anchorX = mouse.X, anchorTop = mouse.Y, anchorBottom = mouse.Y + 20;
+        if (mode == "caret" && _context.Caret is { } caret)
         {
-            var btn = new Button { Margin = new Thickness(4) };
-
-            if (i < _matches.Count)
-            {
-                var match = _matches[i];
-                var panel = new StackPanel
-                {
-                    Orientation = Orientation.Vertical,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                };
-
-                panel.Children.Add(new TextBlock
-                {
-                    Text = match.Emoji.Char,
-                    FontSize = ConfigService.Current.Ui.FontSize,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                });
-
-                panel.Children.Add(new TextBlock
-                {
-                    Text = string.Join(", ", match.Emoji.Tags),
-                    FontSize = 9,
-                    Foreground = Brushes.Gray,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    TextTrimming = TextTrimming.CharacterEllipsis,
-                    MaxWidth = 80,
-                });
-
-                btn.Content = panel;
-                btn.ToolTip = $"{match.Emoji.Name} ({match.CombinedScore})";
-            }
-            else
-            {
-                btn.Visibility = Visibility.Collapsed;
-            }
-
-            btn.Tag = i;
-            var capturedIndex = i;
-            btn.Click += (_, _) => SelectAndClose(capturedIndex);
-            EmojiGrid.Children.Add(btn);
+            anchorX = caret.Left;
+            anchorTop = caret.Top;
+            anchorBottom = caret.Bottom;
         }
 
-        UpdateSelection();
-    }
+        var screen = System.Windows.Forms.Screen.FromPoint(new System.Drawing.Point(anchorX, anchorTop));
+        var work = screen.WorkingArea;
 
-    private void UpdateSelection()
-    {
-        if (_matches.Count > 0)
-            _selectedIndex = Math.Clamp(_selectedIndex, 0, _matches.Count - 1);
+        double width = ActualWidth * dpi.DpiScaleX;
+        double height = ActualHeight * dpi.DpiScaleY;
+        double margin = shadowMargin * dpi.DpiScaleX;
+
+        double x, y;
+        bool above = false;
+
+        if (mode == "center")
+        {
+            x = work.Left + (work.Width - width) / 2;
+            y = work.Top + (work.Height - height) / 3;
+        }
         else
-            _selectedIndex = -1;
-
-        int idx = 0;
-        foreach (Button btn in EmojiGrid.Children)
         {
-            if (idx == _selectedIndex)
+            x = anchorX - margin;
+            y = anchorBottom + 4 - margin;
+            if (y + height > work.Bottom)
             {
-                btn.BorderThickness = new Thickness(2);
-                btn.BorderBrush = Brushes.White;
-                btn.Background = new SolidColorBrush(Color.FromArgb(80, 255, 255, 255));
+                y = anchorTop - height - 4 + margin;
+                above = true;
             }
-            else
+        }
+
+        x = Math.Clamp(x, work.Left, Math.Max(work.Left, work.Right - width));
+        y = Math.Clamp(y, work.Top, Math.Max(work.Top, work.Bottom - height));
+
+        Left = x / dpi.DpiScaleX;
+        Top = y / dpi.DpiScaleY;
+        return above;
+    }
+
+    // ─── Results ──────────────────────────────────────────────────────────────
+
+    private static string BuildContextQuery(TextContext context)
+    {
+        var text = context.Source == TextSource.CursorContext ? context.BeforeCursor : context.Text;
+        if (string.IsNullOrWhiteSpace(text)) text = context.Text;
+        return string.Join(' ', (text ?? "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+    }
+
+    private void OnSearchChanged()
+    {
+        bool hasText = SearchBox.Text.Length > 0;
+        Placeholder.Visibility = hasText ? Visibility.Collapsed : Visibility.Visible;
+        ClearButton.Visibility = hasText ? Visibility.Visible : Visibility.Collapsed;
+        RefreshResults();
+    }
+
+    private void RefreshResults()
+    {
+        _llmCts?.Cancel();
+        _userNavigated = false;
+        SetAiStatus(null);
+
+        var typed = SearchBox.Text.Trim();
+        if (typed.Length > 0)
+        {
+            var matches = EmojiMatcher.GetMatches(typed, _maxResults, _threshold);
+            ShowResults(matches.Select(m => m.Emoji), $"Results for “{Shorten(typed)}”",
+                $"No emoji found for “{Shorten(typed)}”.\nTry another word.");
+            return;
+        }
+
+        if (_contextQuery.Length > 0)
+        {
+            var label = _context.Source == TextSource.Selection
+                ? $"Suggestions for “{Shorten(_contextQuery)}”"
+                : $"Suggestions for “…{ShortenEnd(_contextQuery)}”";
+            var matches = EmojiMatcher.GetMatches(_contextQuery, _maxResults, _threshold).Select(m => m.Emoji).ToList();
+
+            if (matches.Count > 0)
             {
-                btn.BorderThickness = new Thickness(1);
-                btn.BorderBrush = Brushes.Transparent;
-                btn.Background = null;
+                ShowResults(matches, label, null);
+                RequestLlmSuggestions(matches, label);
+                return;
             }
-            idx++;
+
+            // Nothing matched the context: show recents, the LLM may still find something.
+            ShowDefaults();
+            RequestLlmSuggestions(_items.ToList(), label);
+            return;
+        }
+
+        ShowDefaults();
+    }
+
+    private void ShowDefaults()
+    {
+        var recent = RecentEmojiService.GetRecent()
+            .Select(EmojiMatcher.FindByChar)
+            .OfType<EmojiEntry>()
+            .ToList();
+
+        var fill = EmojiMatcher.GetPopularEmoji(_maxResults)
+            .Where(p => recent.All(r => r.Char != p.Char));
+
+        ShowResults(recent.Concat(fill).Take(_maxResults),
+            recent.Count > 0 ? "Recently used" : "Popular",
+            "No emoji available.");
+    }
+
+    private void ShowResults(IEnumerable<EmojiEntry> entries, string label, string? emptyText)
+    {
+        _items.Clear();
+        foreach (var entry in entries) _items.Add(entry);
+
+        SectionLabel.Text = label;
+        EmptyText.Text = emptyText ?? "";
+        EmptyState.Visibility = _items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        Select(_items.Count > 0 ? 0 : -1);
+    }
+
+    /// <summary>
+    /// Asks the local LLM to re-rank candidates for the context text and moves its picks to the front.
+    /// Skipped as soon as the user types or navigates, so the grid never changes under their keys.
+    /// </summary>
+    private async void RequestLlmSuggestions(List<EmojiEntry> fuzzy, string label)
+    {
+        if (_llm is null || _contextQuery.Length == 0) return;
+
+        _llmCts?.Cancel();
+        var cts = _llmCts = new CancellationTokenSource();
+
+        var candidates = fuzzy
+            .Concat(EmojiMatcher.GetPopularEmoji(LlmCandidateCount))
+            .DistinctBy(e => e.Char)
+            .Take(LlmCandidateCount)
+            .ToList();
+
+        SetAiStatus("✨ Thinking…");
+        try
+        {
+            var ranked = await _llm.GetLlmRecommendations(_contextQuery, candidates, cts.Token);
+            if (cts.IsCancellationRequested || _isClosing || _userNavigated || SearchBox.Text.Length > 0) return;
+
+            if (ranked.Count == 0)
+            {
+                SetAiStatus(null);
+                return;
+            }
+
+            var merged = ranked.Concat(_items).DistinctBy(e => e.Char).Take(_maxResults).ToList();
+            ShowResults(merged, label, null);
+            SetAiStatus("✨ AI ranked");
+        }
+        catch (Exception ex)
+        {
+            LoggerService.Warn($"OverlayWindow: LLM suggestions failed — {ex.Message}");
+            if (!cts.IsCancellationRequested) SetAiStatus(null);
         }
     }
 
-    private void SelectAndClose(int index)
+    private void SetAiStatus(string? text)
     {
-        if (index >= 0 && index < _matches.Count)
+        AiBadge.Text = text ?? "";
+        AiBadge.Visibility = text is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private static string Shorten(string text) =>
+        text.Length <= MaxLabelQueryLength ? text : text[..MaxLabelQueryLength].TrimEnd() + "…";
+
+    private static string ShortenEnd(string text) =>
+        text.Length <= MaxLabelQueryLength ? text : text[^MaxLabelQueryLength..].TrimStart();
+
+    // ─── Selection & navigation ───────────────────────────────────────────────
+
+    private void Select(int index)
+    {
+        EmojiList.SelectedIndex = index;
+        if (index >= 0) EmojiList.ScrollIntoView(_items[index]);
+        UpdatePreview();
+    }
+
+    private void UpdatePreview()
+    {
+        if (EmojiList.SelectedItem is EmojiEntry entry)
         {
-            SelectedEmoji = _matches[index].Emoji.Char;
-            LoggerService.Info($"OverlayWindow: emoji sélectionné '{SelectedEmoji}' à l'index {index}");
-            Close();
+            PreviewChar.Text = entry.Char;
+            PreviewName.Text = Capitalize(entry.GetDisplayName(_language));
+            PreviewName.ToolTip = entry.Name;
+        }
+        else
+        {
+            PreviewChar.Text = "";
+            PreviewName.Text = "";
         }
     }
 
-    private void OverlayWindow_KeyDown(object sender, KeyEventArgs e)
+    private static string ResolveLanguage(string language) =>
+        string.IsNullOrWhiteSpace(language) || language.Equals("auto", StringComparison.OrdinalIgnoreCase)
+            ? System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName
+            : language.Trim().ToLowerInvariant();
+
+    private static string Capitalize(string text) =>
+        string.IsNullOrEmpty(text) ? text : char.ToUpperInvariant(text[0]) + text[1..];
+
+    private void MoveHorizontal(int delta)
     {
+        if (_items.Count == 0) return;
+        _userNavigated = true;
+        Select(Math.Clamp(EmojiList.SelectedIndex + delta, 0, _items.Count - 1));
+    }
+
+    private void MoveVertical(int rows)
+    {
+        if (_items.Count == 0) return;
+        _userNavigated = true;
+
+        int current = Math.Max(0, EmojiList.SelectedIndex);
+        int target = current + rows * _columns;
+        if (target < 0)
+            target = rows < -1 ? current % _columns : current;            // PageUp goes to the first row
+        else if (target >= _items.Count)
+        {
+            int lastRow = (_items.Count - 1) / _columns;
+            target = current / _columns < lastRow ? _items.Count - 1 : current; // partial last row
+        }
+        Select(target);
+    }
+
+    private void Commit(bool copyOnly)
+    {
+        if (EmojiList.SelectedItem is not EmojiEntry entry) return;
+
+        SelectedEmoji = entry.Char;
+        CopyOnly = copyOnly;
+        LoggerService.Info($"OverlayWindow: emoji selected '{SelectedEmoji}' ({(copyOnly ? "copy" : "insert")})");
+        Close();
+    }
+
+    private void OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        bool shift = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift);
+        bool ctrl = Keyboard.Modifiers.HasFlag(ModifierKeys.Control);
+
         switch (e.Key)
         {
             case Key.Escape:
-                Close();
-                e.Handled = true;
-                break;
-
-            case Key.Up:
-                if (_matches.Count > 0)
-                {
-                    _selectedIndex -= _gridColumns;
-                    if (_selectedIndex < 0)
-                        _selectedIndex = Math.Max(0, _matches.Count - 1);
-                    UpdateSelection();
-                }
-                e.Handled = true;
-                break;
-
-            case Key.Down:
-                if (_matches.Count > 0)
-                {
-                    _selectedIndex += _gridColumns;
-                    if (_selectedIndex >= _matches.Count)
-                        _selectedIndex = 0;
-                    UpdateSelection();
-                }
-                e.Handled = true;
-                break;
-
-            case Key.Left:
-                if (_matches.Count > 0)
-                {
-                    _selectedIndex--;
-                    if (_selectedIndex < 0)
-                        _selectedIndex = _matches.Count - 1;
-                    UpdateSelection();
-                }
-                e.Handled = true;
-                break;
-
-            case Key.Right:
-                if (_matches.Count > 0)
-                {
-                    _selectedIndex++;
-                    if (_selectedIndex >= _matches.Count)
-                        _selectedIndex = 0;
-                    UpdateSelection();
-                }
-                e.Handled = true;
+                // First Esc clears the search, second one closes.
+                if (SearchBox.Text.Length > 0) SearchBox.Clear();
+                else Close();
                 break;
 
             case Key.Enter:
-                SelectAndClose(_selectedIndex);
-                e.Handled = true;
+                Commit(copyOnly: shift);
                 break;
 
-            case Key.Back:
-                SearchBox.Clear();
-                SearchBox.Focus();
-                e.Handled = true;
+            case Key.Left when !ctrl:
+                MoveHorizontal(-1);
                 break;
+
+            case Key.Right when !ctrl:
+                MoveHorizontal(1);
+                break;
+
+            case Key.Tab:
+                MoveHorizontal(shift ? -1 : 1);
+                break;
+
+            case Key.Up:
+                MoveVertical(-1);
+                break;
+
+            case Key.Down:
+                MoveVertical(1);
+                break;
+
+            case Key.PageUp:
+                MoveVertical(-_visibleRows);
+                break;
+
+            case Key.PageDown:
+                MoveVertical(_visibleRows);
+                break;
+
+            default:
+                return; // Let the search box handle typing, Backspace, Home/End, Ctrl+arrows…
+        }
+
+        e.Handled = true;
+    }
+
+    // ─── Mouse ────────────────────────────────────────────────────────────────
+
+    private int IndexFromEvent(RoutedEventArgs e)
+    {
+        if (e.OriginalSource is not DependencyObject source) return -1;
+        var container = ItemsControl.ContainerFromElement(EmojiList, source) as ListBoxItem;
+        return container is null ? -1 : EmojiList.ItemContainerGenerator.IndexFromContainer(container);
+    }
+
+    private void OnTileClicked(MouseButtonEventArgs e, bool copyOnly)
+    {
+        int index = IndexFromEvent(e);
+        if (index < 0) return;
+
+        Select(index);
+        Commit(copyOnly);
+        e.Handled = true;
+    }
+
+    /// <summary>
+    /// Hovering highlights a tile (and shows its name), but only on real mouse movement:
+    /// MouseMove also fires when the grid re-renders under a still cursor.
+    /// </summary>
+    private void OnListMouseMove(object sender, MouseEventArgs e)
+    {
+        var position = e.GetPosition(this);
+        if (_lastMousePosition == position) return;
+        bool firstEvent = _lastMousePosition is null;
+        _lastMousePosition = position;
+        if (firstEvent) return;
+
+        int index = IndexFromEvent(e);
+        if (index >= 0 && index != EmojiList.SelectedIndex)
+        {
+            _userNavigated = true;
+            EmojiList.SelectedIndex = index;
+            UpdatePreview();
         }
     }
 
-    private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
-    {
-        var query = SearchBox.Text.Trim();
-        if (string.IsNullOrEmpty(query))
-            query = InitialContext?.Text.Trim() ?? "";
+    // ─── Themes ───────────────────────────────────────────────────────────────
 
-        _matches = string.IsNullOrEmpty(query) ? new List<EmojiMatch>() : EmojiMatcher.GetMatches(query);
-        _selectedIndex = _matches.Count > 0 ? 0 : -1;
-        RenderGrid();
-    }
-
-    private void OverlayWindow_Deactivated(object? sender, EventArgs e)
+    private readonly record struct Palette(
+        Color Surface, Color SurfaceAlt, Color Stroke, Color Text, Color Muted, Color Accent, Color Hover)
     {
-        Close();
+        public static readonly Palette Dark = new(
+            Surface: Color.FromRgb(0x1C, 0x1D, 0x24),
+            SurfaceAlt: Color.FromRgb(0x2A, 0x2C, 0x36),
+            Stroke: Color.FromRgb(0x3A, 0x3D, 0x4A),
+            Text: Color.FromRgb(0xF2, 0xF3, 0xF7),
+            Muted: Color.FromRgb(0x9A, 0x9D, 0xAD),
+            Accent: Color.FromRgb(0x8B, 0x7C, 0xFF),
+            Hover: Color.FromArgb(0x1F, 0xFF, 0xFF, 0xFF));
+
+        public static readonly Palette Light = new(
+            Surface: Color.FromRgb(0xFB, 0xFB, 0xFD),
+            SurfaceAlt: Color.FromRgb(0xEE, 0xF0, 0xF5),
+            Stroke: Color.FromRgb(0xD9, 0xDC, 0xE5),
+            Text: Color.FromRgb(0x1C, 0x1D, 0x22),
+            Muted: Color.FromRgb(0x6B, 0x6F, 0x80),
+            Accent: Color.FromRgb(0x6A, 0x55, 0xF5),
+            Hover: Color.FromArgb(0x14, 0x00, 0x00, 0x00));
     }
 }

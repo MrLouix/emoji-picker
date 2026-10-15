@@ -18,6 +18,11 @@ public sealed class OllamaMatcher : ILlmMatcher
     private const int DefaultTimeoutMs = 20_000; // 20s for Ollama (can be slow)
     private const int CacheTtlMinutes = 5;
     private const int MaxLlmResults = 8;
+    private static readonly TimeSpan UnavailableBackoff = TimeSpan.FromMinutes(2);
+    private const char VariationSelector16 = '\uFE0F';
+
+    /// <summary>When Ollama is not running, skip calls for a while instead of failing on every hotkey.</summary>
+    private DateTime _unavailableUntil = DateTime.MinValue;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -69,6 +74,9 @@ public sealed class OllamaMatcher : ILlmMatcher
         if (_cache.TryGetValue(cacheKey, out var cached) && DateTime.UtcNow < cached.ExpiresAt)
             return cached.Results;
 
+        if (DateTime.UtcNow < _unavailableUntil)
+            return new List<EmojiEntry>();
+
         var timeoutMs = _config.TimeoutMs > 0 ? _config.TimeoutMs : DefaultTimeoutMs;
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         cts.CancelAfter(timeoutMs);
@@ -97,7 +105,7 @@ public sealed class OllamaMatcher : ILlmMatcher
             if (ollamaResp is null || string.IsNullOrWhiteSpace(ollamaResp.Response))
                 return new List<EmojiEntry>();
 
-            var results = ParseEmojiFromResponse(ollamaResp.Response, candidateEmojis);
+            var results = ParseEmojiFromResponse(ollamaResp.Response, candidateEmojis).Take(MaxLlmResults).ToList();
             _cache[cacheKey] = (results, DateTime.UtcNow.AddMinutes(CacheTtlMinutes));
             // Log successful matches
             if (results.Count > 0)
@@ -113,7 +121,8 @@ public sealed class OllamaMatcher : ILlmMatcher
         }
         catch (HttpRequestException ex)
         {
-            LoggerService.Warn($"[OllamaMatcher] Ollama unavailable: {ex.Message}");
+            _unavailableUntil = DateTime.UtcNow + UnavailableBackoff;
+            LoggerService.Warn($"[OllamaMatcher] Ollama unavailable, retrying in {UnavailableBackoff.TotalMinutes:0} min: {ex.Message}");
             return new List<EmojiEntry>();
         }
         catch (Exception ex)
@@ -137,20 +146,28 @@ public sealed class OllamaMatcher : ILlmMatcher
 
     private static List<EmojiEntry> ParseEmojiFromResponse(string response, List<EmojiEntry> candidates)
     {
-        var lookup = candidates.ToDictionary(e => e.Char);
+        // Models often drop or add the U+FE0F variation selector ("❤" vs "❤️"): compare without it.
+        // TryAdd also tolerates duplicate candidates, which made ToDictionary throw.
+        var lookup = new Dictionary<string, EmojiEntry>();
+        foreach (var candidate in candidates)
+            lookup.TryAdd(StripVariationSelector(candidate.Char), candidate);
+
         var result = new List<EmojiEntry>();
         var seen = new HashSet<string>();
 
         var enumerator = StringInfo.GetTextElementEnumerator(response);
         while (enumerator.MoveNext())
         {
-            var element = enumerator.GetTextElement();
+            var element = StripVariationSelector(enumerator.GetTextElement());
             if (lookup.TryGetValue(element, out var entry) && seen.Add(element))
                 result.Add(entry);
         }
 
         return result;
     }
+
+    private static string StripVariationSelector(string value) =>
+        value.Replace(VariationSelector16.ToString(), "", StringComparison.Ordinal);
 
     public void Dispose()
     {

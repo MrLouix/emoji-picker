@@ -1,74 +1,98 @@
 using System.Runtime.InteropServices;
-using System.Threading;
 using EmojiPick.Helpers;
 
 namespace EmojiPick.Services;
 
 public static class InputSimulator
 {
-    public static void SendKeyStroke(byte vkCode, bool isKeyDown)
+    private static readonly int[] ModifierKeys =
     {
-        var input = new NativeMethods.INPUT
+        NativeMethods.VK_CONTROL, NativeMethods.VK_MENU, NativeMethods.VK_SHIFT,
+        NativeMethods.VK_LWIN, NativeMethods.VK_RWIN,
+    };
+
+    public static void SendCtrlC() => SendCtrlChord((ushort)NativeMethods.VK_C);
+
+    public static void SendCtrlV() => SendCtrlChord((ushort)NativeMethods.VK_V);
+
+    /// <summary>
+    /// Types text directly as Unicode keystrokes (KEYEVENTF_UNICODE), leaving the clipboard untouched.
+    /// Surrogate pairs are sent as two consecutive UTF-16 units, which is what Windows expects.
+    /// </summary>
+    public static void SendUnicodeText(string text)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+
+        var inputs = new List<NativeMethods.INPUT>(text.Length * 2);
+        foreach (var unit in text)
         {
-            type = NativeMethods.INPUT_KEYBOARD,
-            U = new NativeMethods.InputUnion
+            inputs.Add(UnicodeInput(unit, keyUp: false));
+            inputs.Add(UnicodeInput(unit, keyUp: true));
+        }
+        Send(inputs.ToArray());
+    }
+
+    /// <summary>
+    /// Waits until the user has physically released Ctrl/Alt/Shift/Win (e.g. after the hotkey).
+    /// Synthetic keystrokes sent while modifiers are still down get combined with them
+    /// (Ctrl+C would become Ctrl+Alt+C). Returns false on timeout.
+    /// </summary>
+    public static async Task<bool> WaitForModifiersReleasedAsync(int timeoutMs = 800)
+    {
+        var deadline = Environment.TickCount64 + timeoutMs;
+        while (AnyModifierDown())
+        {
+            if (Environment.TickCount64 >= deadline) return false;
+            await Task.Delay(15);
+        }
+        return true;
+    }
+
+    private static bool AnyModifierDown() =>
+        ModifierKeys.Any(vk => (NativeMethods.GetAsyncKeyState(vk) & 0x8000) != 0);
+
+    /// <summary>Sends Ctrl+key as one atomic SendInput batch so no other input can interleave.</summary>
+    private static void SendCtrlChord(ushort vk)
+    {
+        var ctrl = (ushort)NativeMethods.VK_CONTROL;
+        Send(
+            KeyInput(ctrl, keyUp: false),
+            KeyInput(vk, keyUp: false),
+            KeyInput(vk, keyUp: true),
+            KeyInput(ctrl, keyUp: true));
+    }
+
+    private static void Send(params NativeMethods.INPUT[] inputs)
+    {
+        var sent = NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<NativeMethods.INPUT>());
+        if (sent != inputs.Length)
+            LoggerService.Warn($"SendInput injected {sent}/{inputs.Length} events (error {Marshal.GetLastWin32Error()})");
+    }
+
+    private static NativeMethods.INPUT KeyInput(ushort vk, bool keyUp) => new()
+    {
+        type = NativeMethods.INPUT_KEYBOARD,
+        U = new NativeMethods.InputUnion
+        {
+            ki = new NativeMethods.KEYBDINPUT
             {
-                ki = new NativeMethods.KEYBDINPUT
-                {
-                    wVk = vkCode,
-                    wScan = 0,
-                    dwFlags = isKeyDown ? 0u : NativeMethods.KEYEVENTF_KEYUP,
-                    time = 0,
-                    dwExtraInfo = IntPtr.Zero,
-                }
-            }
-        };
-        NativeMethods.SendInput(1, new[] { input }, Marshal.SizeOf(typeof(NativeMethods.INPUT)));
-    }
+                wVk = vk,
+                dwFlags = keyUp ? NativeMethods.KEYEVENTF_KEYUP : 0u,
+            },
+        },
+    };
 
-    public static void SendKeyDown(byte vkCode) => SendKeyStroke(vkCode, true);
-    public static void SendKeyUp(byte vkCode) => SendKeyStroke(vkCode, false);
-
-    public static void SendKeyPress(byte vkCode)
+    private static NativeMethods.INPUT UnicodeInput(char unit, bool keyUp) => new()
     {
-        var hwnd = NativeMethods.GetForegroundWindow();
-        uint targetThreadId = NativeMethods.GetWindowThreadProcessId(hwnd, out _);
-        uint currentThreadId = NativeMethods.GetCurrentThreadId();
-
-        bool attached = targetThreadId != 0 && targetThreadId != currentThreadId
-            && NativeMethods.AttachThreadInput(currentThreadId, targetThreadId, true);
-        try
+        type = NativeMethods.INPUT_KEYBOARD,
+        U = new NativeMethods.InputUnion
         {
-            SendKeyDown(vkCode);
-            Thread.Sleep(10);
-            SendKeyUp(vkCode);
-        }
-        finally
-        {
-            if (attached)
-                NativeMethods.AttachThreadInput(currentThreadId, targetThreadId, false);
-        }
-    }
-
-    public static void SendCtrlC()
-    {
-        SendKeyDown((byte)NativeMethods.VK_CONTROL);
-        SendKeyPress((byte)NativeMethods.VK_C);
-        SendKeyUp((byte)NativeMethods.VK_CONTROL);
-        Thread.Sleep(200);
-    }
-
-    public static void SendCtrlV()
-    {
-        SendKeyDown((byte)NativeMethods.VK_CONTROL);
-        SendKeyPress((byte)NativeMethods.VK_V);
-        SendKeyUp((byte)NativeMethods.VK_CONTROL);
-        Thread.Sleep(200);
-    }
-
-    public static void SendTextViaPaste(string text)
-    {
-        ClipboardService.SetText(text);
-        SendCtrlV();
-    }
+            ki = new NativeMethods.KEYBDINPUT
+            {
+                wVk = 0,
+                wScan = unit,
+                dwFlags = NativeMethods.KEYEVENTF_UNICODE | (keyUp ? NativeMethods.KEYEVENTF_KEYUP : 0u),
+            },
+        },
+    };
 }

@@ -114,4 +114,65 @@ public class FuzzyMatcherTests
 
         Assert.Empty(results);
     }
+
+    // ─── Tokenized queries ────────────────────────────────────────────────────
+
+    [Fact]
+    public void Tokenize_DropsPunctuationAndStopWords()
+    {
+        Assert.Equal(new[] { "love", "pizza" }, FuzzyMatcher.Tokenize("I love the pizza!!"));
+    }
+
+    [Fact]
+    public void Tokenize_KeepsSingleLetterWhenNothingElse()
+    {
+        Assert.Equal(new[] { "a" }, FuzzyMatcher.Tokenize("a"));
+    }
+
+    [Fact]
+    public void ComputeScore_ShortTagIsNotMatchedInsideLongerWord()
+    {
+        // The one-letter tag "b" (🅱️) must not prefix-match every word starting with b.
+        Assert.True(FuzzyMatcher.ComputeScore("beautiful", "b") < 60);
+    }
+
+    [Fact]
+    public void GetMatches_SentenceQuery_MatchesIndividualWords()
+    {
+        var emojis = new List<EmojiEntry>
+        {
+            new() { Char = "🍕", Name = "pizza", Tags = new List<string> { "pizza" } },
+            new() { Char = "🎲", Name = "game die", Tags = new List<string> { "game", "die" } },
+            new() { Char = "😃", Name = "grinning face with big eyes", Tags = new List<string> { "grinning", "face", "with", "big", "eyes" } },
+        };
+
+        var results = FuzzyMatcher.GetMatches("I really want some pizza with friends", emojis, threshold: 60);
+
+        Assert.NotEmpty(results);
+        Assert.Equal("🍕", results[0].Emoji.Char);
+        // "with" is a stop word: it must not pull in every "... with ..." emoji.
+        Assert.DoesNotContain(results, m => m.Emoji.Char == "😃");
+    }
+
+    [Fact]
+    public void GetMatches_ExactNameWinsTies()
+    {
+        var emojis = new List<EmojiEntry>
+        {
+            new() { Char = "💔", Name = "broken heart", Tags = new List<string> { "broken", "heart" } },
+            new() { Char = "❤️", Name = "red heart", Tags = new List<string> { "red", "heart" } },
+        };
+
+        var results = FuzzyMatcher.GetMatches("red heart", emojis);
+
+        Assert.Equal("❤️", results[0].Emoji.Char);
+    }
+
+    [Fact]
+    public void GetMatches_SetsCombinedScore()
+    {
+        var emojis = new List<EmojiEntry> { new() { Char = "🔥", Name = "fire", Tags = new List<string> { "fire" } } };
+        var results = FuzzyMatcher.GetMatches("fire", emojis);
+        Assert.Equal(100, results[0].CombinedScore);
+    }
 }
