@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net7.0-windows</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
@@ -44,7 +44,10 @@
     <!-- <PackageReference Include="LLamaSharp" Version="0.10.0" /> -->
 
     <!-- WMI for GPU hardware detection -->
-    <PackageReference Include="System.Management" Version="7.0.0" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
+
+    <!-- Color emoji rendering (WPF only draws monochrome glyphs) -->
+    <PackageReference Include="Emoji.Wpf" Version="0.3.4" />
   </ItemGroup>
 
   <ItemGroup>

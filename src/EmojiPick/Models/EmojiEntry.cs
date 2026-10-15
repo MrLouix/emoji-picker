@@ -29,6 +29,19 @@ public class EmojiEntry
     /// <summary>Localized short names from Unicode CLDR, keyed by language (e.g. "fr" → "visage rieur").</summary>
     public Dictionary<string, string> Names { get; set; } = new();
 
+    /// <summary>
+    /// Single skin-tone variants, light → dark (5 entries), or null when the emoji has none.
+    /// </summary>
+    public List<string>? Tones { get; set; }
+
+    public bool SupportsSkinTone => Tones is { Count: 5 };
+
+    /// <summary>
+    /// Character to display/insert for a skin tone: 0 = default (yellow), 1..5 = light → dark.
+    /// </summary>
+    public string WithSkinTone(int tone) =>
+        tone is >= 1 and <= 5 && SupportsSkinTone ? Tones![tone - 1] : Char;
+
     /// <summary>Name in the requested language, falling back to the English name.</summary>
     public string GetDisplayName(string language) =>
         Names.TryGetValue(language, out var localized) && !string.IsNullOrWhiteSpace(localized) ? localized : Name;

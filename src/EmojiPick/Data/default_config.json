@@ -14,7 +14,9 @@
     "windowOpacity": 0.97,
     "gridColumns": 7,
     "gridRows": 4,
-    "positionMode": "caret"
+    "positionMode": "caret",
+    "colorEmoji": true,
+    "skinTone": 0
   },
   "behavior": {
     "autoClose": true,
@@ -53,5 +55,5 @@
     "maxFileSizeMb": 10,
     "retentionDays": 7
   },
-  "language": "en"
+  "language": "auto"
 }

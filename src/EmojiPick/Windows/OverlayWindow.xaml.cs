@@ -5,18 +5,28 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using EmojiPick.Helpers;
 using EmojiPick.Models;
 using EmojiPick.Services;
 using Microsoft.Win32;
 using Color = System.Windows.Media.Color;
+using FontFamily = System.Windows.Media.FontFamily;
+using L = EmojiPick.Helpers.Localization;
+using TextBlock = System.Windows.Controls.TextBlock;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Point = System.Windows.Point;
 
 namespace EmojiPick.Windows;
 
+/// <summary>One grid cell: the emoji and the character shown for the current skin tone.</summary>
+public sealed record EmojiTile(EmojiEntry Entry, string Display);
+
 public partial class OverlayWindow : System.Windows.Window
 {
+    /// <summary>Skin tone modifiers, index 0 = default (none), 1..5 = light → dark.</summary>
+    private static readonly string[] ToneModifiers = { "", "\U0001F3FB", "\U0001F3FC", "\U0001F3FD", "\U0001F3FE", "\U0001F3FF" };
+
     private const int LlmCandidateCount = 40;
     private const int MaxLabelQueryLength = 32;
 
@@ -29,7 +39,8 @@ public partial class OverlayWindow : System.Windows.Window
     private readonly int _threshold;
     private readonly string _contextQuery;
     private readonly string _language;
-    private readonly ObservableCollection<EmojiEntry> _items = new();
+    private readonly ObservableCollection<EmojiTile> _items = new();
+    private int _skinTone;
 
     private CancellationTokenSource? _llmCts;
     private Point? _lastMousePosition;
@@ -37,7 +48,14 @@ public partial class OverlayWindow : System.Windows.Window
     private bool _userNavigated;
 
     public TextContext InitialContext => _context;
+    /// <summary>Character to insert (with the chosen skin tone).</summary>
     public string? SelectedEmoji { get; private set; }
+
+    /// <summary>Base character of the selection (without skin tone), used for the recent list.</summary>
+    public string? SelectedBaseEmoji { get; private set; }
+
+    /// <summary>Raised when the user clicks the settings button; the window closes right after.</summary>
+    public event EventHandler? SettingsRequested;
 
     /// <summary>True when the user asked to copy the emoji instead of inserting it.</summary>
     public bool CopyOnly { get; private set; }
@@ -52,18 +70,32 @@ public partial class OverlayWindow : System.Windows.Window
         _maxResults = _config.Behavior.MaxResults;
         _threshold = (int)Math.Round(_config.Behavior.FuzzyThreshold * 100);
         _contextQuery = BuildContextQuery(context);
-        _language = ResolveLanguage(_config.Language);
+        _language = L.ContentLanguage;
+        _skinTone = _config.Ui.SkinTone;
 
         InitializeComponent();
 
         ApplyTheme();
         ConfigureGrid();
 
+        EmojiList.ItemTemplate = (DataTemplate)Resources[_config.Ui.ColorEmoji ? "ColorTileTemplate" : "MonoTileTemplate"];
         EmojiList.ItemsSource = _items;
-        Placeholder.Text = _contextQuery.Length > 0 ? "Refine or search emoji…" : "Search emoji…";
+        Placeholder.Text = L.T(_contextQuery.Length > 0 ? "Refine" : "Search");
+        InsertHint.Text = L.T("Insert");
+        CopyHint.Text = L.T("Copy");
+        ClearButton.ToolTip = L.T("Clear");
+        ToneButton.ToolTip = L.T("SkinToneTip");
+        SettingsButton.ToolTip = L.T("SettingsTip");
+        UpdateToneButton();
 
         SearchBox.TextChanged += (_, _) => OnSearchChanged();
         ClearButton.Click += (_, _) => { SearchBox.Clear(); SearchBox.Focus(); };
+        ToneButton.Click += (_, _) => { CycleSkinTone(); SearchBox.Focus(); };
+        SettingsButton.Click += (_, _) =>
+        {
+            SettingsRequested?.Invoke(this, EventArgs.Empty);
+            Close();
+        };
         EmojiList.PreviewMouseLeftButtonUp += (_, e) => OnTileClicked(e, copyOnly: Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
         EmojiList.PreviewMouseRightButtonUp += (_, e) => OnTileClicked(e, copyOnly: true);
         EmojiList.MouseMove += OnListMouseMove;
@@ -239,16 +271,15 @@ public partial class OverlayWindow : System.Windows.Window
         if (typed.Length > 0)
         {
             var matches = EmojiMatcher.GetMatches(typed, _maxResults, _threshold);
-            ShowResults(matches.Select(m => m.Emoji), $"Results for “{Shorten(typed)}”",
-                $"No emoji found for “{Shorten(typed)}”.\nTry another word.");
+            ShowResults(matches.Select(m => m.Emoji), L.T("ResultsFor", Shorten(typed)), L.T("NoResults", Shorten(typed)));
             return;
         }
 
         if (_contextQuery.Length > 0)
         {
-            var label = _context.Source == TextSource.Selection
-                ? $"Suggestions for “{Shorten(_contextQuery)}”"
-                : $"Suggestions for “…{ShortenEnd(_contextQuery)}”";
+            var label = L.T("SuggestionsFor", _context.Source == TextSource.Selection
+                ? Shorten(_contextQuery)
+                : "…" + ShortenEnd(_contextQuery));
             var matches = EmojiMatcher.GetMatches(_contextQuery, _maxResults, _threshold).Select(m => m.Emoji).ToList();
 
             if (matches.Count > 0)
@@ -260,7 +291,7 @@ public partial class OverlayWindow : System.Windows.Window
 
             // Nothing matched the context: show recents, the LLM may still find something.
             ShowDefaults();
-            RequestLlmSuggestions(_items.ToList(), label);
+            RequestLlmSuggestions(_items.Select(t => t.Entry).ToList(), label);
             return;
         }
 
@@ -278,14 +309,14 @@ public partial class OverlayWindow : System.Windows.Window
             .Where(p => recent.All(r => r.Char != p.Char));
 
         ShowResults(recent.Concat(fill).Take(_maxResults),
-            recent.Count > 0 ? "Recently used" : "Popular",
-            "No emoji available.");
+            L.T(recent.Count > 0 ? "RecentlyUsed" : "Popular"),
+            L.T("NoEmoji"));
     }
 
     private void ShowResults(IEnumerable<EmojiEntry> entries, string label, string? emptyText)
     {
         _items.Clear();
-        foreach (var entry in entries) _items.Add(entry);
+        foreach (var entry in entries) _items.Add(new EmojiTile(entry, entry.WithSkinTone(_skinTone)));
 
         SectionLabel.Text = label;
         EmptyText.Text = emptyText ?? "";
@@ -311,7 +342,7 @@ public partial class OverlayWindow : System.Windows.Window
             .Take(LlmCandidateCount)
             .ToList();
 
-        SetAiStatus("✨ Thinking…");
+        SetAiStatus(L.T("Thinking"));
         try
         {
             var ranked = await _llm.GetLlmRecommendations(_contextQuery, candidates, cts.Token);
@@ -323,9 +354,9 @@ public partial class OverlayWindow : System.Windows.Window
                 return;
             }
 
-            var merged = ranked.Concat(_items).DistinctBy(e => e.Char).Take(_maxResults).ToList();
+            var merged = ranked.Concat(_items.Select(t => t.Entry)).DistinctBy(e => e.Char).Take(_maxResults).ToList();
             ShowResults(merged, label, null);
-            SetAiStatus("✨ AI ranked");
+            SetAiStatus(L.T("AiRanked"));
         }
         catch (Exception ex)
         {
@@ -357,23 +388,62 @@ public partial class OverlayWindow : System.Windows.Window
 
     private void UpdatePreview()
     {
-        if (EmojiList.SelectedItem is EmojiEntry entry)
+        if (EmojiList.SelectedItem is EmojiTile tile)
         {
-            PreviewChar.Text = entry.Char;
-            PreviewName.Text = Capitalize(entry.GetDisplayName(_language));
-            PreviewName.ToolTip = entry.Name;
+            PreviewChar.Content = CreateEmojiText(tile.Display, 20);
+            PreviewName.Text = Capitalize(tile.Entry.GetDisplayName(_language));
+            PreviewName.ToolTip = tile.Entry.Name;
         }
         else
         {
-            PreviewChar.Text = "";
+            PreviewChar.Content = null;
             PreviewName.Text = "";
         }
     }
 
-    private static string ResolveLanguage(string language) =>
-        string.IsNullOrWhiteSpace(language) || language.Equals("auto", StringComparison.OrdinalIgnoreCase)
-            ? System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName
-            : language.Trim().ToLowerInvariant();
+    /// <summary>Emoji text in color (Emoji.Wpf) or monochrome, following ui.colorEmoji.</summary>
+    private FrameworkElement CreateEmojiText(string text, double size)
+    {
+        TextBlock block;
+        if (_config.Ui.ColorEmoji)
+        {
+            // Emoji.Wpf.TextBlock redeclares Text: set it on the derived type.
+            var colored = new Emoji.Wpf.TextBlock();
+            colored.Text = text;
+            block = colored;
+        }
+        else
+        {
+            block = new TextBlock { Text = text, FontFamily = (FontFamily)FindResource("EmojiFont") };
+        }
+
+        block.FontSize = size;
+        block.VerticalAlignment = VerticalAlignment.Center;
+        block.SetResourceReference(TextBlock.ForegroundProperty, "TextBrush");
+        return block;
+    }
+
+    // ─── Skin tone ────────────────────────────────────────────────────────────
+
+    /// <summary>Cycles default → light → … → dark, re-renders the grid and remembers the choice.</summary>
+    private void CycleSkinTone()
+    {
+        _skinTone = (_skinTone + 1) % ToneModifiers.Length;
+
+        int selected = EmojiList.SelectedIndex;
+        var entries = _items.Select(t => t.Entry).ToList();
+        _items.Clear();
+        foreach (var entry in entries) _items.Add(new EmojiTile(entry, entry.WithSkinTone(_skinTone)));
+        Select(Math.Min(selected, _items.Count - 1));
+        UpdateToneButton();
+
+        ConfigService.Current.Ui.SkinTone = _skinTone;
+        try { ConfigService.Save(); }
+        catch (Exception ex) { LoggerService.Warn($"OverlayWindow: could not save skin tone — {ex.Message}"); }
+    }
+
+    private void UpdateToneButton() =>
+        ToneButton.Content = CreateEmojiText("\u270B" + ToneModifiers[_skinTone], 15);
 
     private static string Capitalize(string text) =>
         string.IsNullOrEmpty(text) ? text : char.ToUpperInvariant(text[0]) + text[1..];
@@ -404,9 +474,10 @@ public partial class OverlayWindow : System.Windows.Window
 
     private void Commit(bool copyOnly)
     {
-        if (EmojiList.SelectedItem is not EmojiEntry entry) return;
+        if (EmojiList.SelectedItem is not EmojiTile tile) return;
 
-        SelectedEmoji = entry.Char;
+        SelectedEmoji = tile.Display;
+        SelectedBaseEmoji = tile.Entry.Char;
         CopyOnly = copyOnly;
         LoggerService.Info($"OverlayWindow: emoji selected '{SelectedEmoji}' ({(copyOnly ? "copy" : "insert")})");
         Close();
@@ -435,6 +506,10 @@ public partial class OverlayWindow : System.Windows.Window
 
             case Key.Right when !ctrl:
                 MoveHorizontal(1);
+                break;
+
+            case Key.T when ctrl:
+                CycleSkinTone();
                 break;
 
             case Key.Tab:

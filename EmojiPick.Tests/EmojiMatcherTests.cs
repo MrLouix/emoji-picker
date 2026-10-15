@@ -4,6 +4,7 @@ using Xunit;
 
 namespace EmojiPick.Tests;
 
+[Collection("EmojiDatabase")]
 public class EmojiMatcherTests : IDisposable
 {
     public EmojiMatcherTests()

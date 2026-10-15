@@ -3,18 +3,20 @@ using System.Drawing;
 using System.IO;
 using System.Windows.Forms;
 using EmojiPick.Helpers;
+using L = EmojiPick.Helpers.Localization;
 
 namespace EmojiPick.Services;
 
 public class TrayIcon : IDisposable
 {
-    private readonly string _hotkeyText;
+    private string _hotkeyText;
     private NotifyIcon? _notifyIcon;
     private Icon? _loadedIcon;
     private bool _disposed;
 
     public event EventHandler? QuitRequested;
     public event EventHandler? OpenRequested;
+    public event EventHandler? SettingsRequested;
 
     public TrayIcon(string hotkeyText)
     {
@@ -28,7 +30,6 @@ public class TrayIcon : IDisposable
         _notifyIcon = new NotifyIcon
         {
             Icon = _loadedIcon,
-            Text = Truncate($"EmojiPick — {_hotkeyText} to pick an emoji", 127),
             Visible = true,
         };
         _notifyIcon.MouseClick += (_, e) =>
@@ -36,12 +37,34 @@ public class TrayIcon : IDisposable
             if (e.Button == MouseButtons.Left) OpenRequested?.Invoke(this, EventArgs.Empty);
         };
 
+        BuildMenu();
+        ShowInfo(L.T("Running", _hotkeyText));
+
+        LoggerService.Info("TrayIcon shown");
+    }
+
+    /// <summary>Re-creates tooltip and menu after the hotkey or the language changed.</summary>
+    public void Refresh(string hotkeyText)
+    {
+        _hotkeyText = hotkeyText;
+        BuildMenu();
+    }
+
+    private void BuildMenu()
+    {
+        if (_notifyIcon is null) return;
+
+        _notifyIcon.Text = Truncate(L.T("TrayTip", _hotkeyText), 127);
+
         var menu = new ContextMenuStrip();
 
-        var openItem = new ToolStripMenuItem($"Open picker\t{_hotkeyText}") { Font = new Font(menu.Font, System.Drawing.FontStyle.Bold) };
+        var openItem = new ToolStripMenuItem($"{L.T("OpenPicker")}\t{_hotkeyText}") { Font = new Font(menu.Font, System.Drawing.FontStyle.Bold) };
         openItem.Click += (_, _) => OpenRequested?.Invoke(this, EventArgs.Empty);
 
-        var autoStartItem = new ToolStripMenuItem("Start with Windows") { CheckOnClick = true, Checked = AutoStartService.IsEnabled() };
+        var settingsItem = new ToolStripMenuItem(L.T("Settings"));
+        settingsItem.Click += (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty);
+
+        var autoStartItem = new ToolStripMenuItem(L.T("StartWithWindows")) { CheckOnClick = true, Checked = AutoStartService.IsEnabled() };
         autoStartItem.Click += (_, _) =>
         {
             if (!AutoStartService.SetEnabled(autoStartItem.Checked))
@@ -49,42 +72,39 @@ public class TrayIcon : IDisposable
             ConfigService.Current.App.AutoStart = autoStartItem.Checked;
             TrySave();
         };
+        // The settings window can change this too: refresh the check mark when the menu opens.
+        menu.Opening += (_, _) => autoStartItem.Checked = AutoStartService.IsEnabled();
 
-        var settingsItem = new ToolStripMenuItem("Open settings file");
-        settingsItem.Click += (_, _) => OpenPath(ConfigService.ConfigFilePath);
+        var configFileItem = new ToolStripMenuItem(L.T("OpenSettingsFile"));
+        configFileItem.Click += (_, _) => OpenPath(ConfigService.ConfigFilePath);
 
-        var logsItem = new ToolStripMenuItem("Open logs folder");
+        var logsItem = new ToolStripMenuItem(L.T("OpenLogs"));
         logsItem.Click += (_, _) => OpenPath(ConfigService.LogDirectory);
 
-        var aboutItem = new ToolStripMenuItem("About EmojiPick");
+        var aboutItem = new ToolStripMenuItem(L.T("About"));
         aboutItem.Click += (_, _) =>
             MessageBox.Show(
-                $"EmojiPick v{App.Version}\n\n" +
-                $"Press {_hotkeyText} to open the emoji picker.\n" +
-                "Type to search, arrow keys to navigate, Enter to insert,\n" +
-                "Shift+Enter (or right-click) to copy, Esc to close.\n\n" +
-                "The selected emoji will be inserted at the cursor position.",
-                "About EmojiPick",
+                L.T("AboutText", App.Version, _hotkeyText),
+                L.T("About"),
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
 
-        var quitItem = new ToolStripMenuItem("Quit");
+        var quitItem = new ToolStripMenuItem(L.T("Quit"));
         quitItem.Click += (_, _) => QuitRequested?.Invoke(this, EventArgs.Empty);
 
         menu.Items.Add(openItem);
+        menu.Items.Add(settingsItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(autoStartItem);
-        menu.Items.Add(settingsItem);
+        menu.Items.Add(configFileItem);
         menu.Items.Add(logsItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(aboutItem);
         menu.Items.Add(quitItem);
 
+        var previous = _notifyIcon.ContextMenuStrip;
         _notifyIcon.ContextMenuStrip = menu;
-
-        ShowInfo($"Running in background. Press {_hotkeyText} to pick an emoji.");
-
-        LoggerService.Info("TrayIcon shown");
+        previous?.Dispose();
     }
 
     public void ShowInfo(string message) =>

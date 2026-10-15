@@ -19,6 +19,9 @@ $SolutionPath = Join-Path $ScriptDir "EmojiPick.sln"
 $OutputDir = Join-Path $ScriptDir "publish"
 $LogPath = Join-Path $ScriptDir "build.log"
 
+# L'installeur embarque l'exe single-file produit par la publication.
+if ($Installer) { $Publish = $true }
+
 # Initialise le log
 "`n=== Build démarré le $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ===" | Out-File $LogPath -Encoding utf8
 
@@ -37,8 +40,8 @@ Write-Log ""
 # Vérifie dotnet.exe
 $dotnet = Get-Command "dotnet" -ErrorAction SilentlyContinue
 if (-not $dotnet) {
-    Write-Log "[ERREUR] .NET SDK non détecté. Installe le .NET 7.0 SDK :" Red
-    Write-Log "  https://dotnet.microsoft.com/download/dotnet/7.0" Yellow
+    Write-Log "[ERREUR] .NET SDK non détecté. Installe le .NET 8.0 SDK :" Red
+    Write-Log "  https://dotnet.microsoft.com/download/dotnet/8.0" Yellow
     exit 1
 }
 

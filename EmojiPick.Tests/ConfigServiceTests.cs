@@ -12,7 +12,7 @@ public class ConfigServiceTests
     {
         var config = new Config
         {
-            Ui = new UiConfig { GridColumns = 0, GridRows = 100, FontSize = 2, WindowOpacity = 3 },
+            Ui = new UiConfig { GridColumns = 0, GridRows = 100, FontSize = 2, WindowOpacity = 3, SkinTone = 9 },
             Behavior = new BehaviorConfig { FuzzyThreshold = 60, MaxResults = 0, InjectMode = "" },
             Hotkey = new HotKeyConfig { Modifiers = Array.Empty<string>(), Key = " " },
         };
@@ -21,6 +21,7 @@ public class ConfigServiceTests
 
         Assert.Equal(3, config.Ui.GridColumns);
         Assert.Equal(8, config.Ui.GridRows);
+        Assert.Equal(5, config.Ui.SkinTone);
         Assert.Equal(14, config.Ui.FontSize);
         Assert.Equal(1.0, config.Ui.WindowOpacity);
         Assert.Equal(1.0, config.Behavior.FuzzyThreshold);
@@ -39,5 +40,20 @@ public class ConfigServiceTests
 
         Assert.NotNull(config.Ui);
         Assert.Contains("ollama", config.Llm.Providers.Keys);
+    }
+
+    [Fact]
+    public void Clone_ReturnsIndependentDeepCopy()
+    {
+        var original = new Config();
+        original.Ui.SkinTone = 2;
+
+        var copy = ConfigService.Clone(original);
+        copy.Ui.SkinTone = 4;
+        copy.Llm.Providers["ollama"].Model = "llama3";
+
+        Assert.Equal(2, original.Ui.SkinTone);
+        Assert.Equal("mistral", original.Llm.Providers["ollama"].Model);
+        Assert.Equal(4, copy.Ui.SkinTone);
     }
 }

@@ -42,6 +42,12 @@ public class UiConfig
 
     /// <summary>"caret" (text cursor, falls back to mouse), "cursor" (mouse) or "center" (screen).</summary>
     public string PositionMode { get; set; } = "caret";
+
+    /// <summary>Render emoji in color (Emoji.Wpf). False uses WPF's monochrome glyphs.</summary>
+    public bool ColorEmoji { get; set; } = true;
+
+    /// <summary>Default skin tone: 0 = none (yellow), 1..5 = light → dark.</summary>
+    public int SkinTone { get; set; }
 }
 
 public class BehaviorConfig

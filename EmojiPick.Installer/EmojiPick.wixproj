@@ -6,7 +6,8 @@
     <Version>1.0.0</Version>
     <ProductCode>*</ProductCode>
     <UpgradeCode>{7F2A4B6C-8D1E-4F3A-9B5C-6E7D8F9A0B1C}</UpgradeCode>
-    <DefineConstants>ExeFile=..\\src\\EmojiPick\\bin\\Release\\net7.0-windows\\EmojiPick.exe</DefineConstants>
+    <!-- Single-file exe from "Build.ps1 -Publish": the plain bin\ build needs its DLLs next to it -->
+    <DefineConstants>ExeFile=..\\publish\\EmojiPick.exe</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="WixToolset.UI.wixext" Version="4.0.5" />

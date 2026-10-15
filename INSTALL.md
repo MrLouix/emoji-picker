@@ -34,7 +34,7 @@ After installation:
 | Requirement | Details |
 |-------------|---------|
 | **OS** | Windows 10 or Windows 11 |
-| **Runtime** | .NET 7.0 Desktop Runtime ([Download](https://dotnet.microsoft.com/en-us/download/dotnet/7.0)) |
+| **Runtime** | .NET 8.0 Desktop Runtime ([Download](https://dotnet.microsoft.com/en-us/download/dotnet/8.0)) |
 | **Disk Space** | ~10 MB (application only) |
 | **RAM** | ~100 MB base |
 
@@ -125,7 +125,7 @@ Remove-Item -Recurse "$env:LOCALAPPDATA\EmojiPick" -Force
 
 ### EmojiPick doesn't start
 
-- Verify .NET 7.0 Runtime is installed: `dotnet --list-runtimes`
+- Verify .NET 8.0 Runtime is installed: `dotnet --list-runtimes`
 - Check logs: `%APPDATA%\EmojiPick\logs\EmojiPick-{date}.log`
 
 ### Hotkey doesn't work

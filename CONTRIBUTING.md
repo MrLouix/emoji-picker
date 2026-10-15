@@ -7,7 +7,7 @@ Thank you for your interest in contributing! This document covers the essentials
 ### Prerequisites
 
 - **Windows 10/11** (WPF is Windows-only)
-- **.NET 7.0 SDK** ([Download](https://dotnet.microsoft.com/en-us/download/dotnet/7.0))
+- **.NET 8.0 SDK** ([Download](https://dotnet.microsoft.com/en-us/download/dotnet/8.0))
 - **Visual Studio 2022** or **VS Code + C# Dev Kit**
 - **WiX Toolset v3.x** (optional, for MSI builds)
 

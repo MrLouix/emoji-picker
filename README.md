@@ -53,8 +53,8 @@ Press a global hotkey (`Ctrl+Alt+E` by default), and a transparent overlay appea
 | Component | Technology |
 |-----------|-----------|
 | Language | C# 12 |
-| Runtime | .NET 7.0 LTS |
-| UI | WPF (transparent, always-on-top overlay) |
+| Runtime | .NET 8.0 LTS |
+| UI | WPF (transparent, always-on-top overlay) + Emoji.Wpf for color emoji |
 | Hotkeys | Windows API `RegisterHotKey` (P/Invoke) |
 | Input | `SendInput` API — reliable across applications |
 | LLM — Ollama | HTTP REST `localhost:11434` |
@@ -70,7 +70,7 @@ Press a global hotkey (`Ctrl+Alt+E` by default), and a transparent overlay appea
 ### Prerequisites
 
 - **Windows 10/11**
-- **.NET 7.0 Runtime** ([download](https://dotnet.microsoft.com/en-us/download/dotnet/7.0))
+- **.NET 8.0 Desktop Runtime** ([download](https://dotnet.microsoft.com/en-us/download/dotnet/8.0))
 - *(Optional)* **Ollama** running on `localhost:11434` with a model (e.g. `mistral`)
 - *(Optional)* **WiX Toolset v4** for building the MSI — `dotnet tool install --global wix`
 
@@ -116,9 +116,12 @@ This produces `EmojiPickerSetup.msi` in the `EmojiPick.Installer/bin/Release/` f
 
 ## Configuration
 
-User configuration is stored at `%APPDATA%\EmojiPick\config.json` (tray menu → *Open settings file*).
+Open **Settings…** from the tray menu (or the ⚙ button in the picker) to change the shortcut, theme,
+language, skin tone, color emoji, grid size, insertion mode and Ollama options — changes apply immediately.
+
+Everything is stored in `%APPDATA%\EmojiPick\config.json` (tray menu → *Open settings file*).
 Property names are case-insensitive; invalid values are clamped and an unreadable file is backed up to `config.json.bak`.
-Restart EmojiPick after editing.
+Restart EmojiPick after editing the file by hand.
 
 ```json
 {
@@ -129,7 +132,9 @@ Restart EmojiPick after editing.
     "windowOpacity": 0.97,
     "gridColumns": 7,
     "gridRows": 4,              // visible rows, more results scroll
-    "positionMode": "caret"     // "caret" | "cursor" | "center"
+    "positionMode": "caret",    // "caret" | "cursor" | "center"
+    "colorEmoji": true,         // color rendering via Emoji.Wpf, false = monochrome
+    "skinTone": 0               // 0 = default, 1..5 = light → dark
   },
   "behavior": {
     "injectMode": "paste",      // "paste" | "type" (Unicode keystrokes) | "clipboard"
@@ -137,7 +142,7 @@ Restart EmojiPick after editing.
     "fuzzyThreshold": 0.6,
     "maxResults": 42
   },
-  "language": "auto",           // language of emoji names in the footer ("en", "fr", or "auto")
+  "language": "auto",           // UI and emoji-name language ("en", "fr", or "auto" = Windows language)
   "llm": {
     "enabled": true,
     "providers": {
@@ -157,6 +162,7 @@ Restart EmojiPick after editing.
 | `PageUp` / `PageDown` | Jump one page of results |
 | `Enter` / click | Insert emoji at the cursor |
 | `Shift+Enter` / right-click | Copy emoji to clipboard only |
+| `Ctrl+T` / ✋ button | Cycle the skin tone (remembered) |
 | `Escape` | Clear search, press again to close |
 | Hotkey again | Close the picker |
 
@@ -213,12 +219,12 @@ python3 tools/build_emoji_db.py <cldr-dir> en fr
 
 ## Roadmap
 
-- [ ] Skin tone support (👍🏻👍🏼👍🏽👍🏾👍🏿)
+- [x] Skin tone support (👍🏻👍🏼👍🏽👍🏾👍🏿)
 - [x] Usage history (recently used emoji)
-- [ ] Configuration UI panel (instead of editing JSON)
-- [x] French keywords & names (CLDR) — [ ] DE, ES, JP, localized UI
+- [x] Configuration UI panel (instead of editing JSON)
+- [x] French UI, keywords & names (CLDR) — [ ] DE, ES, JP
 - [x] Themes (dark/light/system)
-- [ ] Color emoji rendering (WPF draws monochrome glyphs; e.g. via Emoji.Wpf)
+- [x] Color emoji rendering (Emoji.Wpf)
 - [ ] Custom emoji collections
 - [ ] Statistics dashboard
 

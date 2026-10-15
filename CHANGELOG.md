@@ -19,6 +19,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ILlmMatcher interface for unified LLM provider abstraction
 - ResourceLoader for embedded resource access
 
+### Added (follow-ups)
+- Settings window (tray menu or ⚙ in the picker): shortcut capture, theme, language, skin tone,
+  color emoji, grid size, position, insertion mode, start with Windows, Ollama endpoint/model;
+  changes apply without restarting (hotkey re-registered live)
+- Color emoji rendering with Emoji.Wpf (`ui.colorEmoji`, on by default)
+- Skin tones: `tones` variants in the database, ✋ button / Ctrl+T in the picker, `ui.skinTone`
+- French user interface (picker, tray menu, settings), following `language` / Windows language
+
+### Changed
+- Target .NET 8 (LTS); .NET 7 is out of support
+- MSI installer now packages the single-file published exe (it previously shipped `EmojiPick.exe` without its DLLs)
+
 ### Fixed
 - Emoji database field `sequence` was never mapped to `EmojiEntry.Char`: every result was blank and nothing was pasted
 - Backspace cleared the whole search instead of deleting one character

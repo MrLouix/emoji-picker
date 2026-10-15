@@ -6,6 +6,7 @@ using EmojiPick.Models;
 using EmojiPick.Services;
 using EmojiPick.Windows;
 using Application = System.Windows.Application;
+using L = EmojiPick.Helpers.Localization;
 using MessageBox = System.Windows.MessageBox;
 
 namespace EmojiPick;
@@ -22,6 +23,7 @@ public partial class App : Application
     private HotKeyManager? _hotKeyManager;
     private OllamaMatcher? _llm;
     private OverlayWindow? _overlay;
+    private SettingsWindow? _settings;
     private bool _opening;
 
     public static string Version { get; } =
@@ -30,14 +32,14 @@ public partial class App : Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        L.Apply("auto");
 
         _instanceMutex = new Mutex(initiallyOwned: true, SingleInstanceMutexName, out var createdNew);
         if (!createdNew)
         {
             _instanceMutex.Dispose();
             _instanceMutex = null;
-            MessageBox.Show("EmojiPick is already running — look for its icon in the notification area.",
-                "EmojiPick", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(L.T("AlreadyRunning"), "EmojiPick", MessageBoxButton.OK, MessageBoxImage.Information);
             Shutdown();
             return;
         }
@@ -57,22 +59,22 @@ public partial class App : Application
             ConfigService.EnsureDirectories();
             var config = ConfigService.Load();
             LoggerService.SetMinimumLevel(config.Logging.Level);
+            L.Apply(config.Language);
             LoggerService.Info("Configuration loaded");
 
-            _hotKeyManager = new HotKeyManager(config.Hotkey);
-            _hotKeyManager.HotKeyPressed += (_, _) => _ = TogglePickerAsync(fromHotkey: true);
-            var registered = _hotKeyManager.Register();
+            var registered = RegisterHotKey(config);
 
-            _trayIcon = new TrayIcon(_hotKeyManager.DisplayText);
+            _trayIcon = new TrayIcon(_hotKeyManager!.DisplayText);
             _trayIcon.QuitRequested += (_, _) => Shutdown();
             _trayIcon.OpenRequested += (_, _) => _ = TogglePickerAsync(fromHotkey: false);
+            _trayIcon.SettingsRequested += (_, _) => OpenSettings();
             _trayIcon.Show();
 
             if (!registered)
-                _trayIcon.ShowWarning($"Could not register {_hotKeyManager.DisplayText} — another application may use it. " +
-                                      "Change \"hotkey\" in the settings file, or open the picker from this icon.");
+                _trayIcon.ShowWarning(L.T("HotkeyFailed", _hotKeyManager.DisplayText));
 
             _llm = CreateLlmMatcher(config);
+            ConfigService.Changed += (_, _) => Dispatcher.Invoke(ApplyConfig);
 
             // Decompress the emoji database in the background so the first opening is instant.
             _ = Task.Run(() => EmojiMatcher.GetPopularEmoji());
@@ -89,6 +91,51 @@ public partial class App : Application
                 MessageBoxImage.Error);
             Shutdown();
         }
+    }
+
+    /// <summary>(Re)registers the global hotkey from the configuration.</summary>
+    private bool RegisterHotKey(Config config)
+    {
+        _hotKeyManager?.Dispose();
+        _hotKeyManager = new HotKeyManager(config.Hotkey);
+        _hotKeyManager.HotKeyPressed += (_, _) => _ = TogglePickerAsync(fromHotkey: true);
+        return _hotKeyManager.Register();
+    }
+
+    /// <summary>Applies a configuration saved from the settings window without restarting.</summary>
+    private void ApplyConfig()
+    {
+        var config = ConfigService.Current;
+        LoggerService.SetMinimumLevel(config.Logging.Level);
+        L.Apply(config.Language);
+
+        var registered = RegisterHotKey(config);
+        _trayIcon?.Refresh(_hotKeyManager!.DisplayText);
+        if (!registered)
+            _trayIcon?.ShowWarning(L.T("HotkeyFailed", _hotKeyManager!.DisplayText));
+        else
+            _trayIcon?.ShowInfo(L.T("Saved"));
+
+        _llm?.Dispose();
+        _llm = CreateLlmMatcher(config);
+
+        LoggerService.Info("Configuration re-applied");
+    }
+
+    private void OpenSettings()
+    {
+        _overlay?.Close();
+
+        if (_settings != null)
+        {
+            _settings.Activate();
+            return;
+        }
+
+        _settings = new SettingsWindow();
+        _settings.Closed += (_, _) => _settings = null;
+        _settings.Show();
+        _settings.Activate();
     }
 
     private static OllamaMatcher? CreateLlmMatcher(Config config)
@@ -137,8 +184,10 @@ public partial class App : Application
             overlay.Closed += async (_, _) =>
             {
                 if (ReferenceEquals(_overlay, overlay)) _overlay = null;
-                await InsertEmojiAsync(overlay.SelectedEmoji, overlay.CopyOnly, target);
+                await InsertEmojiAsync(overlay.SelectedEmoji, overlay.SelectedBaseEmoji, overlay.CopyOnly, target);
             };
+            // Open settings once the overlay has fully closed.
+            overlay.SettingsRequested += (_, _) => Dispatcher.BeginInvoke(new Action(OpenSettings));
 
             _overlay = overlay;
             overlay.Show();
@@ -154,13 +203,14 @@ public partial class App : Application
         }
     }
 
-    private async Task InsertEmojiAsync(string? emoji, bool copyOnly, IntPtr target)
+    private async Task InsertEmojiAsync(string? emoji, string? baseEmoji, bool copyOnly, IntPtr target)
     {
         if (string.IsNullOrEmpty(emoji)) return;
 
         try
         {
-            RecentEmojiService.Add(emoji);
+            // Recents keep the base emoji so they follow the current skin tone setting.
+            RecentEmojiService.Add(baseEmoji ?? emoji);
 
             var behavior = ConfigService.Current.Behavior;
             var mode = copyOnly || target == IntPtr.Zero ? "clipboard" : behavior.InjectMode.Trim().ToLowerInvariant();
@@ -225,6 +275,7 @@ public partial class App : Application
         LoggerService.Info("EmojiPick shutting down...");
 
         _overlay?.Close();
+        _settings?.Close();
         _hotKeyManager?.Dispose();
         _trayIcon?.Dispose();
         _llm?.Dispose();

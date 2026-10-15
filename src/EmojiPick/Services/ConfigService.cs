@@ -38,6 +38,26 @@ public static class ConfigService
     /// <summary>True once <see cref="Load"/> has run; guards against saving untouched defaults.</summary>
     public static bool IsLoaded { get; private set; }
 
+    /// <summary>Raised after <see cref="Update"/> replaced the configuration.</summary>
+    public static event EventHandler? Changed;
+
+    /// <summary>Deep copy, so a settings dialog can edit without touching the live config.</summary>
+    public static Config Clone(Config config) =>
+        JsonSerializer.Deserialize<Config>(JsonSerializer.Serialize(config, JsonOptions), JsonOptions)!;
+
+    /// <summary>Validates, replaces and saves the configuration, then raises <see cref="Changed"/>.</summary>
+    public static void Update(Config config)
+    {
+        lock (_lock)
+        {
+            Normalize(config);
+            _config = config;
+            IsLoaded = true;
+            SaveInternal();
+        }
+        Changed?.Invoke(null, EventArgs.Empty);
+    }
+
     /// <summary>Load config from disk, or create defaults if missing.</summary>
     public static Config Load()
     {
@@ -128,6 +148,7 @@ public static class ConfigService
         config.Ui.WindowOpacity = Math.Clamp(config.Ui.WindowOpacity, 0.5, 1.0);
         config.Ui.GridColumns = Math.Clamp(config.Ui.GridColumns, 3, 12);
         config.Ui.GridRows = Math.Clamp(config.Ui.GridRows, 1, 8);
+        config.Ui.SkinTone = Math.Clamp(config.Ui.SkinTone, 0, 5);
 
         config.Behavior.FuzzyThreshold = Math.Clamp(config.Behavior.FuzzyThreshold, 0.0, 1.0);
         config.Behavior.MaxResults = Math.Clamp(config.Behavior.MaxResults, 1, 200);
