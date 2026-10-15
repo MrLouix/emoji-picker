@@ -144,18 +144,13 @@ if ($Installer) {
         exit 1
     }
     Write-Log "[OK]   Installeur généré." Green
-    $msiPath = Join-Path $ScriptDir "EmojiPick.Installer\bin\Release\netstandard2.0\EmojiPickerSetup.msi"
-    if (Test-Path $msiPath) {
-        $size = [math]::Round((Get-Item $msiPath).Length / 1MB, 2)
-        Write-Log "       MSI : $msiPath ($size MB)" Green
+    # L'emplacement exact dépend de la plateforme WiX (bin\Release, bin\x64\Release…) : on le cherche.
+    $msi = Get-ChildItem (Join-Path $ScriptDir "EmojiPick.Installer\bin") -Recurse -Filter "EmojiPickerSetup.msi" -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if ($msi) {
+        $size = [math]::Round($msi.Length / 1MB, 2)
+        Write-Log "       MSI : $($msi.FullName) ($size MB)" Green
     } else {
-        # Alternative path for SDK output
-        $msiAlt = Join-Path $ScriptDir "EmojiPick.Installer\bin\Release\EmojiPickerSetup.msi"
-        if (Test-Path $msiAlt) {
-            $size = [math]::Round((Get-Item $msiAlt).Length / 1MB, 2)
-            Write-Log "       MSI : $msiAlt ($size MB)" Green
-        } else {
-            Write-Log "[WARN] MSI non trouvé dans les chemins habituels. Vérifie le dossier bin." Yellow
-        }
+        Write-Log "[WARN] MSI non trouvé sous EmojiPick.Installer\bin. Vérifie build.log." Yellow
     }
 }

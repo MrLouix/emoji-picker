@@ -9,40 +9,44 @@ Thank you for your interest in contributing! This document covers the essentials
 - **Windows 10/11** (WPF is Windows-only)
 - **.NET 8.0 SDK** ([Download](https://dotnet.microsoft.com/en-us/download/dotnet/8.0))
 - **Visual Studio 2022** or **VS Code + C# Dev Kit**
-- **WiX Toolset v3.x** (optional, for MSI builds)
+- No WiX install needed: the WiX v4 SDK is restored from NuGet when building the MSI
 
 ### Getting Started
 
-```bash
+```powershell
 # 1. Clone the repository
-git clone https://github.com/<user>/emojipick.git
-cd emojipick
+git clone https://github.com/MrLouix/emoji-picker.git
+cd emoji-picker
 
-# 2. Restore NuGet packages
-dotnet restore
+# 2. Build app + tests
+dotnet build EmojiPick.sln -c Release
 
-# 3. Build
-dotnet build -c Release
+# 3. Run (quit any installed EmojiPick first: only one instance can run)
+dotnet run --project src\EmojiPick\EmojiPick.csproj
 
-# 4. Run (Windows only — must have WPF runtime)
-dotnet run --project EmojiPick/EmojiPick/EmojiPick.csproj
+# 4. Test
+dotnet test EmojiPick.Tests\EmojiPick.Tests.csproj
 ```
+
+Or use `.\Build.ps1` (`-Publish`, `-Installer`, `-Clean`) — see the README.
 
 ## Project Structure
 
 ```
-EmojiPick/
-├── EmojiPick.sln                # Visual Studio / Rider solution
-├── EmojiPick/
+emoji-picker/
+├── EmojiPick.sln                # Solution (installer excluded from solution builds)
+├── Build.ps1                    # Build / publish / MSI script
+├── src/EmojiPick/
 │   ├── EmojiPick.csproj         # Main project
 │   ├── App.xaml / App.xaml.cs   # Application entry point
 │   ├── Models/                  # Data models & POCOs
 │   ├── Services/                # Business logic (thin wrappers)
 │   ├── Windows/                 # WPF windows & UI
-│   ├── Helpers/                 # Utilities, P/Invoke, algorithms
+│   ├── Helpers/                 # Utilities, P/Invoke, algorithms, localization
 │   └── Data/                    # Embedded resources
-├── EmojiPick.Installer/         # WiX MSI installer
-└── docs/                        # Spec, plans, notes
+├── EmojiPick.Tests/             # xUnit tests
+├── EmojiPick.Installer/         # WiX v4 MSI installer
+└── tools/                       # Emoji database generator (Python)
 ```
 
 ## Coding Standards
@@ -131,18 +135,18 @@ As the project evolves:
 2. **Integration tests** for clipboard save/restore, Ollama HTTP client
 3. **Manual tests** for hotkey registration, overlay UI, cross-app injection
 
-Tests directory: `EmojiPick.Tests/` (to be created)
+Tests directory: `EmojiPick.Tests/`
 
 ## Releasing
 
-1. Update `Version` in `EmojiPick.csproj`
-2. Update `Version` in `Product.wxs` (WiX)
+1. Update `Version` in `src/EmojiPick/EmojiPick.csproj`
+2. Update `Version` in `EmojiPick.Installer/EmojiPick.wixproj` and `Product.wxs`
 3. Update `"version"` in `default_config.json`
 4. Move `[Unreleased]` section in `CHANGELOG.md` to new version
 5. Tag release: `git tag -a v1.0.0 -m "Release v1.0.0"`
-6. Build artifacts: `dotnet publish` + `wix build`
-7. Publish to GitHub Releases
+6. Build artifacts: `.\Build.ps1 -Installer` → `publish\EmojiPick.exe` and `EmojiPickerSetup.msi`
+7. Publish both to GitHub Releases
 
 ---
 
-Questions? Open an [issue](https://github.com/<user>/emojipick/issues).
+Questions? Open an [issue](https://github.com/MrLouix/emoji-picker/issues).
