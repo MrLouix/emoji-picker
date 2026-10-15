@@ -184,7 +184,7 @@ public partial class App : Application
             overlay.Closed += async (_, _) =>
             {
                 if (ReferenceEquals(_overlay, overlay)) _overlay = null;
-                await InsertEmojiAsync(overlay.SelectedEmoji, overlay.SelectedBaseEmoji, overlay.CopyOnly, target);
+                await InsertEmojiAsync(overlay.SelectedEmoji, overlay.SelectedBaseEmoji, overlay.CopyOnly, target, context.HasSelection);
             };
             // Open settings once the overlay has fully closed.
             overlay.SettingsRequested += (_, _) => Dispatcher.BeginInvoke(new Action(OpenSettings));
@@ -203,7 +203,8 @@ public partial class App : Application
         }
     }
 
-    private async Task InsertEmojiAsync(string? emoji, string? baseEmoji, bool copyOnly, IntPtr target)
+    /// <param name="afterSelection">Text was selected in the target: the emoji goes after it instead of replacing it.</param>
+    private async Task InsertEmojiAsync(string? emoji, string? baseEmoji, bool copyOnly, IntPtr target, bool afterSelection)
     {
         if (string.IsNullOrEmpty(emoji)) return;
 
@@ -215,6 +216,12 @@ public partial class App : Application
             var behavior = ConfigService.Current.Behavior;
             var mode = copyOnly || target == IntPtr.Zero ? "clipboard" : behavior.InjectMode.Trim().ToLowerInvariant();
 
+            if (mode != "clipboard")
+            {
+                await FocusTargetAsync(target);
+                if (afterSelection) InputSimulator.SendRightArrow();
+            }
+
             switch (mode)
             {
                 case "clipboard":
@@ -223,13 +230,11 @@ public partial class App : Application
                     break;
 
                 case "type":
-                    await FocusTargetAsync(target);
                     InputSimulator.SendUnicodeText(emoji);
                     LoggerService.Info("Typed emoji: " + emoji);
                     break;
 
                 default:
-                    await FocusTargetAsync(target);
                     var snapshot = behavior.RestoreClipboard ? ClipboardService.Capture() : null;
                     if (!ClipboardService.SetText(emoji)) return;
                     var sequence = ClipboardService.SequenceNumber;

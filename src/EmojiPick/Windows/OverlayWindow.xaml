@@ -163,7 +163,8 @@
         <Border CornerRadius="10" Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="1"
                 Padding="12,12,12,8">
-            <Grid>
+            <!-- Width pinned to the emoji grid from code, so long names are trimmed instead of widening the window -->
+            <Grid x:Name="Body">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -278,13 +279,13 @@
                             <Border Style="{StaticResource KeyChip}"><TextBlock Text="Esc" Style="{StaticResource KeyText}" /></Border>
                         </StackPanel>
 
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <DockPanel LastChildFill="True" VerticalAlignment="Center">
                             <!-- Filled from code with a color or monochrome emoji text -->
-                            <ContentControl x:Name="PreviewChar" VerticalAlignment="Center" Margin="0,0,8,0" Focusable="False" />
+                            <ContentControl x:Name="PreviewChar" DockPanel.Dock="Left" VerticalAlignment="Center" Margin="0,0,8,0" Focusable="False" />
                             <TextBlock x:Name="PreviewName" FontSize="12.5" FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center"
-                                       TextTrimming="CharacterEllipsis" MaxWidth="170" />
-                        </StackPanel>
+                                       TextTrimming="CharacterEllipsis" />
+                        </DockPanel>
                     </DockPanel>
                 </Border>
             </Grid>

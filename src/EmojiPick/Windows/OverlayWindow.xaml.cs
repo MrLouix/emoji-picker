@@ -103,6 +103,7 @@ public partial class OverlayWindow : System.Windows.Window
         EmojiList.PreviewMouseLeftButtonUp += (_, e) => OnTileClicked(e, copyOnly: Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
         EmojiList.PreviewMouseRightButtonUp += (_, e) => OnTileClicked(e, copyOnly: true);
         EmojiList.MouseMove += OnListMouseMove;
+        Root.MouseLeftButtonDown += OnRootMouseLeftButtonDown;
 
         PreviewKeyDown += OnPreviewKeyDown;
         Deactivated += (_, _) => { if (!_isClosing) Close(); };
@@ -133,6 +134,8 @@ public partial class OverlayWindow : System.Windows.Window
         double cell = tile + 4; // tile margin
         EmojiList.Width = _columns * cell;
         EmojiList.Height = _visibleRows * cell;
+        // SizeToContent would otherwise widen the window to fit a long emoji name or context.
+        Body.Width = EmojiList.Width;
     }
 
     private void ApplyTheme()
@@ -631,6 +634,23 @@ public partial class OverlayWindow : System.Windows.Window
         Select(index);
         Commit(copyOnly);
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// The window has no title bar: dragging any non-interactive area moves it. The search box,
+    /// buttons and tiles handle the mouse themselves, so the event never bubbles up from them.
+    /// </summary>
+    private void OnRootMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ButtonState != MouseButtonState.Pressed) return;
+        try
+        {
+            DragMove();
+        }
+        catch (InvalidOperationException)
+        {
+            // The button was released before the drag started.
+        }
     }
 
     /// <summary>

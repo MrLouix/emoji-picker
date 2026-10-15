@@ -36,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ↑/↓ wrap within the column; Esc closes directly
 - Default grid 6 × 3 with 18 results (existing config.json files keep their values)
 
+### Changed (picker behavior)
+- The picker keeps the width of the emoji grid: long emoji names and context are trimmed instead of widening it
+- The picker can be moved by dragging any empty area (background, labels, footer)
+- With text selected, the emoji is inserted after the selection instead of replacing it
+- Browsers: Ctrl+C is tried whenever UI Automation reports no selection, since web editors such as
+  Google Docs often report only the caret; the selection was picked up only some of the time
+
 ### Changed
 - Target .NET 8 (LTS); .NET 7 is out of support
 - MSI installer now packages the single-file published exe (it previously shipped `EmojiPick.exe` without its DLLs)

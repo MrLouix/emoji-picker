@@ -125,6 +125,7 @@ public static class NativeMethods
     }
 
     public const uint INPUT_KEYBOARD = 1;
+    public const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
     public const uint KEYEVENTF_KEYUP = 0x0002;
     public const uint KEYEVENTF_UNICODE = 0x0004;
 
@@ -138,4 +139,8 @@ public static class NativeMethods
     public const int VK_V = 0x56;
     public const int VK_ESCAPE = 0x1B;
     public const int VK_RETURN = 0x0D;
+    public const int VK_RIGHT = 0x27;
+
+    // Scan codes
+    public const ushort SC_RIGHT = 0x4D;  // Extended key: sent with KEYEVENTF_EXTENDEDKEY
 }

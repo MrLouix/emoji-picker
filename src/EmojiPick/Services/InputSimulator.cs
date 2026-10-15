@@ -16,6 +16,18 @@ public static class InputSimulator
     public static void SendCtrlV() => SendCtrlChord((ushort)NativeMethods.VK_V);
 
     /// <summary>
+    /// Right arrow, as a real key press (scan code + extended flag, like the dedicated arrow key).
+    /// Collapses a selection to its end, so the next insertion goes after it instead of replacing it.
+    /// </summary>
+    public static void SendRightArrow()
+    {
+        var vk = (ushort)NativeMethods.VK_RIGHT;
+        Send(
+            KeyInput(vk, keyUp: false, NativeMethods.SC_RIGHT, extended: true),
+            KeyInput(vk, keyUp: true, NativeMethods.SC_RIGHT, extended: true));
+    }
+
+    /// <summary>
     /// Types text directly as Unicode keystrokes (KEYEVENTF_UNICODE), leaving the clipboard untouched.
     /// Surrogate pairs are sent as two consecutive UTF-16 units, which is what Windows expects.
     /// </summary>
@@ -69,7 +81,7 @@ public static class InputSimulator
             LoggerService.Warn($"SendInput injected {sent}/{inputs.Length} events (error {Marshal.GetLastWin32Error()})");
     }
 
-    private static NativeMethods.INPUT KeyInput(ushort vk, bool keyUp) => new()
+    private static NativeMethods.INPUT KeyInput(ushort vk, bool keyUp, ushort scan = 0, bool extended = false) => new()
     {
         type = NativeMethods.INPUT_KEYBOARD,
         U = new NativeMethods.InputUnion
@@ -77,7 +89,9 @@ public static class InputSimulator
             ki = new NativeMethods.KEYBDINPUT
             {
                 wVk = vk,
-                dwFlags = keyUp ? NativeMethods.KEYEVENTF_KEYUP : 0u,
+                wScan = scan,
+                dwFlags = (keyUp ? NativeMethods.KEYEVENTF_KEYUP : 0u) |
+                          (extended ? NativeMethods.KEYEVENTF_EXTENDEDKEY : 0u),
             },
         },
     };

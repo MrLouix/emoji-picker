@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Windows.Automation;
 using System.Windows.Automation.Text;
@@ -25,6 +26,15 @@ public class SelectionHandler
         "ConsoleWindowClass", "CASCADIA_HOSTING_WINDOW_CLASS", "PseudoConsoleWindow", "mintty",
     };
 
+    /// <summary>
+    /// Browsers: web editors that draw their own text (Google Docs, Office Online…) often report
+    /// only a caret through UI Automation while text is selected, so its "no selection" is not trusted.
+    /// </summary>
+    private static readonly HashSet<string> BrowserProcesses = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "chrome", "msedge", "firefox", "brave", "opera", "vivaldi", "arc",
+    };
+
     /// <param name="targetWindow">Foreground window when the hotkey was pressed.</param>
     /// <param name="allowCopy">False when modifiers are still held, so Ctrl+C would be misinterpreted.</param>
     public async Task<TextContext> CaptureAsync(IntPtr targetWindow, bool allowCopy = true)
@@ -47,8 +57,10 @@ public class SelectionHandler
         }
 
         // When UI Automation exposed the text, it already told us there is no selection:
-        // skip the Ctrl+C fallback and its side effects.
-        if (allowCopy && !uia.HasTextPattern && !IsConsoleWindow(targetWindow))
+        // skip the Ctrl+C fallback and its side effects (editors like VS Code copy the whole line).
+        // In browsers, Ctrl+C without a selection copies nothing, and the clipboard check catches it.
+        bool trustUia = uia.HasTextPattern && !IsBrowserWindow(targetWindow);
+        if (allowCopy && !trustUia && !IsConsoleWindow(targetWindow))
         {
             var copied = await CopySelectionAsync();
             if (!string.IsNullOrWhiteSpace(copied))
@@ -119,6 +131,22 @@ public class SelectionHandler
         if (hwnd == IntPtr.Zero) return false;
         var sb = new StringBuilder(256);
         return NativeMethods.GetClassName(hwnd, sb, sb.Capacity) > 0 && ConsoleWindowClasses.Contains(sb.ToString());
+    }
+
+    /// <summary>Matched on the process: Electron apps such as VS Code share Chrome's window class.</summary>
+    private static bool IsBrowserWindow(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero) return false;
+        try
+        {
+            NativeMethods.GetWindowThreadProcessId(hwnd, out var processId);
+            using var process = Process.GetProcessById((int)processId);
+            return BrowserProcesses.Contains(process.ProcessName);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private readonly record struct UiaResult(string? Selection, string? BeforeCaret, ScreenRect? Caret, bool HasTextPattern = false);
