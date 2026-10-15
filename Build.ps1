@@ -137,7 +137,8 @@ if ($Installer) {
     }
     Write-Log ""
     Write-Log "[...]  Génération de l'installeur MSI (WiX v4)..." Yellow
-    $installerResult = dotnet build $InstallerPath -c Release --nologo 2>&1
+    # --no-incremental : WiX ne suit pas license.rtf ni icon.ico, un build incrémental garderait l'ancien MSI.
+    $installerResult = dotnet build $InstallerPath -c Release --no-incremental --nologo 2>&1
     $installerResult | Out-File $LogPath -Encoding utf8 -Append
     if ($LASTEXITCODE -ne 0) {
         Write-Log "[ERREUR] La génération de l'installeur a échoué." Red
