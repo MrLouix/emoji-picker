@@ -40,7 +40,8 @@ config.json
 docs/
 
 ## LLM models (large files)
-models/
+# Anchored to the root: git ignores case on Windows, and "models/" also matched src/EmojiPick/Models/
+/models/
 *.gguf
 *.bin
 
