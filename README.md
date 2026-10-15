@@ -107,7 +107,10 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\Build.ps1 -Configuration Debug
 ```
 
-The script logs everything to `build.log`. The same steps with `dotnet` directly:
+The script logs everything to `build.log`. Each build gets a new version `major.minor.N`: `major.minor` comes
+from `VERSION`, `N` goes up by one on every successful build (kept locally in `.build-number`, not committed),
+and every build is listed in `build-history.log` with its version and commit. Installing a newer MSI over an
+existing EmojiPick updates it. The same steps with `dotnet` directly (version `major.minor.0`):
 
 ```powershell
 dotnet build EmojiPick.sln -c Release                      # app + tests (the installer is not part of the solution build)

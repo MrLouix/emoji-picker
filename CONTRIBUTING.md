@@ -139,13 +139,13 @@ Tests directory: `EmojiPick.Tests/`
 
 ## Releasing
 
-1. Update `Version` in `src/EmojiPick/EmojiPick.csproj`
-2. Update `Version` in `EmojiPick.Installer/EmojiPick.wixproj` and `Product.wxs`
-3. Update `"version"` in `default_config.json`
-4. Move `[Unreleased]` section in `CHANGELOG.md` to new version
-5. Tag release: `git tag -a v1.0.0 -m "Release v1.0.0"`
-6. Build artifacts: `.\Build.ps1 -Installer` → `publish\EmojiPick.exe` and `EmojiPickerSetup.msi`
-7. Publish both to GitHub Releases
+1. Update `major.minor` in `VERSION` — the app and the MSI take their version from it; `Build.ps1` adds the
+   build number (+1 per build, local `.build-number`) and records each build in `build-history.log`
+2. Update `"version"` in `default_config.json`
+3. Move `[Unreleased]` section in `CHANGELOG.md` to new version
+4. Tag release: `git tag -a v1.0.0 -m "Release v1.0.0"`
+5. Build artifacts: `.\Build.ps1 -Installer` → `publish\EmojiPick.exe` and `EmojiPickerSetup.msi`
+6. Publish both to GitHub Releases
 
 ---
 

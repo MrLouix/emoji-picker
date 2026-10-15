@@ -18,6 +18,10 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $SolutionPath = Join-Path $ScriptDir "EmojiPick.sln"
 $OutputDir = Join-Path $ScriptDir "publish"
 $LogPath = Join-Path $ScriptDir "build.log"
+# Version major.minor dans VERSION (versionné) ; numéro de build +1 à chaque build, local (ignoré par git).
+$VersionFile = Join-Path $ScriptDir "VERSION"
+$BuildNumberFile = Join-Path $ScriptDir ".build-number"
+$HistoryPath = Join-Path $ScriptDir "build-history.log"
 
 # L'installeur embarque l'exe single-file produit par la publication.
 if ($Installer) { $Publish = $true }
@@ -54,6 +58,23 @@ if (-not (Test-Path $SolutionPath)) {
     exit 1
 }
 
+# Version : l'exe la porte, et l'installeur la reprend (une mise à jour remplace l'ancienne version).
+$baseVersion = if (Test-Path $VersionFile) { (Get-Content $VersionFile -Raw).Trim() } else { "" }
+if ($baseVersion -notmatch '^\d+\.\d+$') {
+    Write-Log "[ERREUR] VERSION doit contenir major.minor (ex. 1.0), trouvé : '$baseVersion'" Red
+    exit 1
+}
+$buildNumber = 0
+if (Test-Path $BuildNumberFile) { [void][int]::TryParse((Get-Content $BuildNumberFile -Raw).Trim(), [ref]$buildNumber) }
+$buildNumber++
+if ($buildNumber -gt 65535) {
+    # Windows Installer ignore les versions dont le 3e champ dépasse 65535.
+    Write-Log "[ERREUR] Numéro de build $buildNumber > 65535 : augmente la version dans VERSION et supprime .build-number." Red
+    exit 1
+}
+$Version = "$baseVersion.$buildNumber"
+Write-Log "[OK]   Version $Version" Green
+
 # --- 2. Nettoyage optionnel ------------------------------------------------
 if ($Clean) {
     Write-Log "[...]  Nettoyage (dotnet clean)..." Yellow
@@ -73,19 +94,21 @@ Write-Log "[OK]   Restore terminé." Green
 
 # --- 4. Build ---------------------------------------------------------------
 Write-Log "[...]  Compilation ($Configuration)..." Yellow
-$buildResult = dotnet build $SolutionPath -c $Configuration --no-restore --nologo 2>&1
+$buildResult = dotnet build $SolutionPath -c $Configuration --no-restore --nologo -p:Version=$Version 2>&1
 $buildResult | Out-File $LogPath -Encoding utf8 -Append
 if ($LASTEXITCODE -ne 0) {
     Write-Log "[ERREUR] dotnet build a échoué." Red
     exit 1
 }
+# Le numéro n'est consommé que si la compilation passe.
+Set-Content $BuildNumberFile $buildNumber -Encoding ascii
 Write-Log "[OK]   Build réussi." Green
 
 # --- 5. Publish optionnel --------------------------------------------------
 if ($Publish) {
     Write-Log "[...]  Publication (publish)..." Yellow
     # Note: --no-build is omitted intentionally; publish needs to rebuild with the correct RID for single-file bundling
-    $publishResult = dotnet publish "src\EmojiPick\EmojiPick.csproj" -c $Configuration -o $OutputDir -r win-x64 --nologo 2>&1
+    $publishResult = dotnet publish "src\EmojiPick\EmojiPick.csproj" -c $Configuration -o $OutputDir -r win-x64 --nologo -p:Version=$Version 2>&1
     $publishResult | Out-File $LogPath -Encoding utf8 -Append
     if ($LASTEXITCODE -ne 0) {
         Write-Log "[ERREUR] dotnet publish a échoué." Red
@@ -101,6 +124,7 @@ if ($Publish) {
 # --- 6. Résumé --------------------------------------------------------------
 Write-Log ""
 Write-Log "=== Résumé ===" Cyan
+Write-Log "       Version $Version" Green
 
 $binDir = Join-Path (Join-Path (Join-Path $ScriptDir "src") "EmojiPick") "bin"
 if (Test-Path $binDir) {
@@ -155,3 +179,14 @@ if ($Installer) {
         Write-Log "[WARN] MSI non trouvé sous EmojiPick.Installer\bin. Vérifie build.log." Yellow
     }
 }
+
+# --- 8. Historique des builds (local, ignoré par git) ----------------------
+$commit = ""
+if (Get-Command "git" -ErrorAction SilentlyContinue) {
+    $commit = git -C $ScriptDir rev-parse --short HEAD 2>$null
+    if ($commit -and (git -C $ScriptDir status --porcelain 2>$null)) { $commit += " + modifs locales" }
+}
+$artifacts = if ($Installer) { "exe + MSI" } elseif ($Publish) { "exe" } else { "build" }
+"$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  $Version  $Configuration  $artifacts  $commit" |
+    Out-File $HistoryPath -Encoding utf8 -Append
+Write-Log "Historique : $HistoryPath" Gray

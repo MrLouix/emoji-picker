@@ -29,6 +29,8 @@ dist/
 *.zip
 build.log
 *.log
+# Build.ps1 : numéro de build local (+1 à chaque build) ; l'historique est dans build-history.log
+.build-number
 
 ## User data (never commit)
 %APPDATA%/

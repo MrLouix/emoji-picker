@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
      xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
-  <Package Name="EmojiPick" Language="1033" Version="1.0.0" Manufacturer="EmojiPick" UpgradeCode="7F2A4B6C-8D1E-4F3A-9B5C-6E7D8F9A0B1C" InstallerVersion="500">
+  <!-- Version comes from EmojiPick.exe (set by Build.ps1), so the MSI and the app always match -->
+  <Package Name="EmojiPick" Language="1033" Version="!(bind.FileVersion.EmojiPickExe)" Manufacturer="EmojiPick" UpgradeCode="7F2A4B6C-8D1E-4F3A-9B5C-6E7D8F9A0B1C" InstallerVersion="500">
 
-    <!-- Major Upgrade Support -->
-    <MajorUpgrade DowngradeErrorMessage="A newer version of EmojiPick is already installed." />
+    <!-- Installing over an existing EmojiPick replaces it, even at the same version (a rebuild) -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of EmojiPick is already installed." />
 
     <!-- Embed CAB -->
     <MediaTemplate EmbedCab="yes" />
@@ -28,7 +29,7 @@
     <!-- Main executable -->
     <DirectoryRef Id="AppFolder">
       <Component Id="MainExecutable" Guid="*">
-        <File Source="$(var.ExeFile)" KeyPath="yes" />
+        <File Id="EmojiPickExe" Source="$(var.ExeFile)" KeyPath="yes" />
       </Component>
     </DirectoryRef>
 

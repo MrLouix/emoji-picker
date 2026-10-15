@@ -43,6 +43,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Browsers: Ctrl+C is tried whenever UI Automation reports no selection, since web editors such as
   Google Docs often report only the caret; the selection was picked up only some of the time
 
+### Changed (versioning and updates)
+- Every `Build.ps1` build gets a new version `major.minor.N`: `major.minor` from `VERSION`, `N` + 1 per
+  successful build (local `.build-number`, not committed); builds are listed in `build-history.log`
+- The MSI takes its version from `EmojiPick.exe` and installing it over an existing EmojiPick updates it,
+  even at the same version; before, every MSI was 1.0.0 and reinstalling added a second EmojiPick
+
 ### Changed
 - Target .NET 8 (LTS); .NET 7 is out of support
 - MSI installer now packages the single-file published exe (it previously shipped `EmojiPick.exe` without its DLLs)

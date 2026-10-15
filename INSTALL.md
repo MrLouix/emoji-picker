@@ -24,6 +24,9 @@ or build it yourself (see [Build the installer](#build-the-installer)).
 3. Start **EmojiPick** from the Start Menu — the installer does not launch it.
 4. Optional: right-click the tray icon → **Start with Windows** (or **Settings…** → *Start with Windows*).
 
+**Updating**: run the new `EmojiPickerSetup.msi` over the installed one, no need to uninstall first —
+it replaces the previous version (the version is shown in the tray menu → **About EmojiPick**).
+
 After the first start:
 - ✅ The EmojiPick icon appears in the notification area (click it to open the picker)
 - ✅ `Ctrl+Alt+E` opens the picker anywhere
@@ -51,6 +54,7 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass   # allow the unsigne
 
 `-Installer` builds the app, publishes the single-file `publish\EmojiPick.exe`, then builds the MSI
 and prints its path (under `EmojiPick.Installer\bin\`). Details are in `build.log`.
+Each build is numbered `major.minor.N` (`N` + 1 per build) and recorded in `build-history.log`.
 
 ---
 
