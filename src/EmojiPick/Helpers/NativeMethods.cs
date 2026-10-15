@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace EmojiPick.Helpers;
 
@@ -11,6 +12,8 @@ public static class NativeMethods
     public const int MOD_CONTROL = 0x0002;
     public const int MOD_ALT = 0x0001;
     public const int MOD_SHIFT = 0x0004;
+    public const int MOD_WIN = 0x0008;
+    public const int MOD_NOREPEAT = 0x4000;
     public const int WM_HOTKEY = 0x0312;
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -38,8 +41,52 @@ public static class NativeMethods
     [DllImport("kernel32.dll")]
     public static extern uint GetCurrentThreadId();
 
-    // ---- SendInput ----
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    // ---- Caret location ----
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
+
     [DllImport("user32.dll")]
+    public static extern bool ClientToScreen(IntPtr hWnd, ref POINT lpPoint);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT
+    {
+        public int X;
+        public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GUITHREADINFO
+    {
+        public int cbSize;
+        public uint flags;
+        public IntPtr hwndActive;
+        public IntPtr hwndFocus;
+        public IntPtr hwndCapture;
+        public IntPtr hwndMenuOwner;
+        public IntPtr hwndMoveSize;
+        public IntPtr hwndCaret;
+        public RECT rcCaret;
+    }
+
+    // ---- Clipboard ----
+    [DllImport("user32.dll")]
+    public static extern uint GetClipboardSequenceNumber();
+
+    // ---- SendInput ----
+    [DllImport("user32.dll", SetLastError = true)]
     public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
     [StructLayout(LayoutKind.Sequential)]
@@ -78,14 +125,22 @@ public static class NativeMethods
     }
 
     public const uint INPUT_KEYBOARD = 1;
+    public const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
     public const uint KEYEVENTF_KEYUP = 0x0002;
+    public const uint KEYEVENTF_UNICODE = 0x0004;
 
     // Virtual key codes
     public const int VK_CONTROL = 0x11;
     public const int VK_MENU = 0x12;     // Alt
     public const int VK_SHIFT = 0x10;
+    public const int VK_LWIN = 0x5B;
+    public const int VK_RWIN = 0x5C;
     public const int VK_C = 0x43;
     public const int VK_V = 0x56;
     public const int VK_ESCAPE = 0x1B;
     public const int VK_RETURN = 0x0D;
+    public const int VK_RIGHT = 0x27;
+
+    // Scan codes
+    public const ushort SC_RIGHT = 0x4D;  // Extended key: sent with KEYEVENTF_EXTENDEDKEY
 }

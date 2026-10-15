@@ -1,4 +1,3 @@
-using System;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Windows.Interop;
@@ -10,6 +9,7 @@ namespace EmojiPick.Services;
 public class HotKeyManager : IDisposable
 {
     private const int HotKeyId = 9000;
+    private static readonly IntPtr HwndMessage = new(-3);
 
     private readonly HotKeyConfig _config;
     private readonly uint _modifiers;
@@ -19,6 +19,9 @@ public class HotKeyManager : IDisposable
 
     public event EventHandler? HotKeyPressed;
 
+    /// <summary>Human-readable shortcut, e.g. "Ctrl+Alt+E".</summary>
+    public string DisplayText => string.Join("+", _config.Modifiers.Append(_config.Key.ToUpperInvariant()));
+
     public HotKeyManager(HotKeyConfig config)
     {
         _config = config;
@@ -26,28 +29,34 @@ public class HotKeyManager : IDisposable
         _vkCode = ResolveVirtualKey(config.Key);
     }
 
-    public void Register()
+    /// <summary>Registers the global hotkey. Returns false if another application already owns it.</summary>
+    public bool Register()
     {
+        if (_vkCode == 0) return false;
+
+        // Message-only window: receives WM_HOTKEY without ever being visible.
         var parameters = new HwndSourceParameters("EmojiPickHotkeyWindow")
         {
             Width = 0,
             Height = 0,
             WindowStyle = 0,
+            ParentWindow = HwndMessage,
         };
 
         _hwndSource = new HwndSource(parameters);
         _hwndSource.AddHook(WndProc);
 
-        var success = NativeMethods.RegisterHotKey(_hwndSource.Handle, HotKeyId, _modifiers, _vkCode);
+        // MOD_NOREPEAT: holding the shortcut down must not reopen the picker in a loop.
+        var success = NativeMethods.RegisterHotKey(_hwndSource.Handle, HotKeyId, _modifiers | NativeMethods.MOD_NOREPEAT, _vkCode);
         if (!success)
         {
             var error = Marshal.GetLastWin32Error();
-            LoggerService.Warn($"RegisterHotKey failed (error {error}) — another app may hold {string.Join("+", _config.Modifiers)}+{_config.Key}");
+            LoggerService.Warn($"RegisterHotKey failed (error {error}) — another app may hold {DisplayText}");
+            return false;
         }
-        else
-        {
-            LoggerService.Info($"Hotkey registered: {string.Join("+", _config.Modifiers)}+{_config.Key}");
-        }
+
+        LoggerService.Info($"Hotkey registered: {DisplayText}");
+        return true;
     }
 
     public void Unregister()
@@ -67,6 +76,7 @@ public class HotKeyManager : IDisposable
         if (_disposed) return;
         _disposed = true;
         Unregister();
+        GC.SuppressFinalize(this);
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -84,20 +94,27 @@ public class HotKeyManager : IDisposable
         uint flags = 0;
         foreach (var mod in modifiers)
         {
-            flags |= mod.ToUpperInvariant() switch
+            flags |= mod.Trim().ToUpperInvariant() switch
             {
-                "CTRL" or "CONTROL" => (uint)NativeMethods.MOD_CONTROL,
-                "ALT"               => (uint)NativeMethods.MOD_ALT,
-                "SHIFT"             => (uint)NativeMethods.MOD_SHIFT,
-                _                   => 0u,
+                "CTRL" or "CONTROL"     => (uint)NativeMethods.MOD_CONTROL,
+                "ALT"                   => (uint)NativeMethods.MOD_ALT,
+                "SHIFT"                 => (uint)NativeMethods.MOD_SHIFT,
+                "WIN" or "WINDOWS"      => (uint)NativeMethods.MOD_WIN,
+                _                       => 0u,
             };
         }
         return flags;
     }
 
-    private static uint ResolveVirtualKey(string key)
+    internal static uint ResolveVirtualKey(string key)
     {
-        if (Enum.TryParse<Keys>(key, ignoreCase: true, out var parsedKey))
+        key = key.Trim();
+
+        // "1" would otherwise parse as the numeric enum value 1 (= Keys.LButton).
+        if (key.Length == 1 && char.IsDigit(key[0]))
+            key = "D" + key;
+
+        if (!key.All(char.IsDigit) && Enum.TryParse<Keys>(key, ignoreCase: true, out var parsedKey))
             return (uint)parsedKey;
 
         LoggerService.Warn($"Cannot resolve virtual key '{key}' — hotkey may not trigger");

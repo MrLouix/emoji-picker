@@ -99,6 +99,22 @@ public class OllamaMatcherTests
     }
 
     [Fact]
+    public async Task GetLlmRecommendations_IgnoresVariationSelectorAndDuplicateCandidates()
+    {
+        // The model answers "❤" (no U+FE0F) while the candidate is "❤️"; candidates contain a duplicate.
+        const string responseJson = """{"model":"mistral","response":"❤ 😀","done":true}""";
+        var handler = new FakeHandler((_, _) => Task.FromResult(
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(responseJson) }));
+        using var matcher = new OllamaMatcher(DefaultConfig(), handler);
+
+        var candidates = SampleCandidates();
+        candidates.Add(candidates[0]);
+        var result = await matcher.GetLlmRecommendations("love", candidates);
+
+        Assert.Equal(new[] { "❤️", "😀" }, result.Select(e => e.Char));
+    }
+
+    [Fact]
     public async Task GetLlmRecommendations_CancelledToken_ReturnsEmpty()
     {
         var handler = new FakeHandler(async (_, ct) =>

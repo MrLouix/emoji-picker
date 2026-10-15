@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net7.0-windows</TargetFramework>
+    <TargetFramework>net8.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
@@ -10,7 +10,8 @@
     <ApplicationIcon>app.ico</ApplicationIcon>
     <AssemblyName>EmojiPick</AssemblyName>
     <RootNamespace>EmojiPick</RootNamespace>
-    <Version>1.0.0</Version>
+    <!-- Major.minor from VERSION; Build.ps1 overrides it with the build number (-p:Version=1.0.N) -->
+    <Version>$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)..\..\VERSION').Trim()).0</Version>
     <Authors>EmojiPick Project</Authors>
     <Description>Emoji Overlay Picker for Windows — Fuzzy + LLM matching</Description>
     <Copyright>MIT License</Copyright>
@@ -44,7 +45,10 @@
     <!-- <PackageReference Include="LLamaSharp" Version="0.10.0" /> -->
 
     <!-- WMI for GPU hardware detection -->
-    <PackageReference Include="System.Management" Version="7.0.0" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
+
+    <!-- Color emoji rendering (WPF only draws monochrome glyphs) -->
+    <PackageReference Include="Emoji.Wpf" Version="0.3.4" />
   </ItemGroup>
 
   <ItemGroup>

@@ -11,20 +11,21 @@ namespace EmojiPick.Services;
 /// </summary>
 public static class LoggerService
 {
+    private static readonly LoggingLevelSwitch LevelSwitch = new(LogEventLevel.Information);
     private static Logger? _logger;
     private static bool _initialized;
 
-    public static void Initialize(LogEventLevel level = LogEventLevel.Verbose)
+    public static void Initialize(LogEventLevel level = LogEventLevel.Information)
     {
         if (_initialized) return;
 
         var logDir = ConfigService.LogDirectory;
         Directory.CreateDirectory(logDir);
 
-        var levelSwitch = new LoggingLevelSwitch { MinimumLevel = level };
+        LevelSwitch.MinimumLevel = level;
 
         _logger = new LoggerConfiguration()
-            .MinimumLevel.ControlledBy(levelSwitch)
+            .MinimumLevel.ControlledBy(LevelSwitch)
             .WriteTo.File(
                 path: Path.Combine(logDir, "EmojiPick-.log"),
                 rollingInterval: RollingInterval.Day,
@@ -35,6 +36,26 @@ public static class LoggerService
             .CreateLogger();
 
         _initialized = true;
+    }
+
+    /// <summary>Apply the level from config.json ("verbose", "debug", "info", "warn", "error").</summary>
+    public static void SetMinimumLevel(string? level)
+    {
+        LevelSwitch.MinimumLevel = (level ?? "").Trim().ToLowerInvariant() switch
+        {
+            "verbose" or "trace" => LogEventLevel.Verbose,
+            "debug"              => LogEventLevel.Debug,
+            "warn" or "warning"  => LogEventLevel.Warning,
+            "error"              => LogEventLevel.Error,
+            _                    => LogEventLevel.Information,
+        };
+    }
+
+    public static void Flush()
+    {
+        _logger?.Dispose();
+        _logger = null;
+        _initialized = false;
     }
 
     public static void Verbose(string message)

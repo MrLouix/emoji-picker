@@ -2,11 +2,14 @@
 <Project Sdk="WixToolset.Sdk/4.0.5">
   <PropertyGroup>
     <OutputType>Package</OutputType>
-    <PackageFile>EmojiPickerSetup.msi</PackageFile>
-    <Version>1.0.0</Version>
-    <ProductCode>*</ProductCode>
-    <UpgradeCode>{7F2A4B6C-8D1E-4F3A-9B5C-6E7D8F9A0B1C}</UpgradeCode>
-    <DefineConstants>ExeFile=..\\src\\EmojiPick\\bin\\Release\\net7.0-windows\\EmojiPick.exe</DefineConstants>
+    <OutputName>EmojiPickerSetup</OutputName>
+    <!-- Version and UpgradeCode live in Product.wxs (the version is read from EmojiPick.exe) -->
+    <!-- ICE61 warns about AllowSameVersionUpgrades, which is intended: reinstalling a rebuild replaces it -->
+    <SuppressIces>ICE61</SuppressIces>
+    <!-- The exe is published for win-x64 and installed under ProgramFiles64Folder: WiX defaults to x86 (ICE80) -->
+    <InstallerPlatform>x64</InstallerPlatform>
+    <!-- Single-file exe from "Build.ps1 -Publish": the plain bin\ build needs its DLLs next to it -->
+    <DefineConstants>ExeFile=..\\publish\\EmojiPick.exe</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="WixToolset.UI.wixext" Version="4.0.5" />
