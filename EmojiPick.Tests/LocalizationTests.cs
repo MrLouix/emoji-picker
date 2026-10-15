@@ -18,7 +18,7 @@ public class LocalizationTests : IDisposable
     {
         Localization.Apply("fr");
         Assert.Equal("fr", Localization.UiLanguage);
-        Assert.Equal("Résultats pour « chat »", Localization.T("ResultsFor", "chat"));
+        Assert.Equal("Aucun emoji pour « chat »", Localization.T("NoResultsTitle", "chat"));
     }
 
     [Fact]
@@ -27,7 +27,7 @@ public class LocalizationTests : IDisposable
         Localization.Apply("de");
         Assert.Equal("en", Localization.UiLanguage);
         Assert.Equal("de", Localization.ContentLanguage);
-        Assert.Equal("Popular", Localization.T("Popular"));
+        Assert.Equal("POPULAR", Localization.T("SectionPopular"));
     }
 
     [Fact]

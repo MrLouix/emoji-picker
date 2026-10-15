@@ -40,17 +40,27 @@
         <Style x:Key="TileStyle" TargetType="ListBoxItem">
             <Setter Property="Focusable" Value="False" />
             <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="ToolTip" Value="{Binding Entry.Name}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListBoxItem">
                         <Border x:Name="Tile"
                                 Width="{DynamicResource TileSize}" Height="{DynamicResource TileSize}"
-                                Margin="2" CornerRadius="10"
+                                Margin="2" CornerRadius="8"
                                 Background="Transparent"
-                                BorderBrush="Transparent" BorderThickness="1.5">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                BorderBrush="Transparent" BorderThickness="2">
+                            <Grid>
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <!-- Marks emoji added by the AI refinement -->
+                                <Ellipse x:Name="AiDot" Width="5" Height="5" Fill="{DynamicResource AccentBrush}"
+                                         HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,4,0"
+                                         Visibility="Collapsed" />
+                            </Grid>
                         </Border>
                         <ControlTemplate.Triggers>
+                            <DataTrigger Binding="{Binding IsAi}" Value="True">
+                                <Setter TargetName="AiDot" Property="Visibility" Value="Visible" />
+                            </DataTrigger>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="Tile" Property="Background" Value="{DynamicResource HoverBrush}" />
                             </Trigger>
@@ -144,13 +154,13 @@
         </Grid.RenderTransform>
 
         <!-- Shadow lives on its own layer so text stays crisp (effects blur their content) -->
-        <Border CornerRadius="14" Background="{DynamicResource SurfaceBrush}">
+        <Border CornerRadius="10" Background="{DynamicResource SurfaceBrush}">
             <Border.Effect>
-                <DropShadowEffect BlurRadius="24" ShadowDepth="6" Direction="270" Opacity="0.35" Color="Black" />
+                <DropShadowEffect BlurRadius="24" ShadowDepth="8" Direction="270" Opacity="0.45" Color="Black" />
             </Border.Effect>
         </Border>
 
-        <Border CornerRadius="14" Background="{DynamicResource SurfaceBrush}"
+        <Border CornerRadius="10" Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="1"
                 Padding="12,12,12,8">
             <Grid>
@@ -159,10 +169,11 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <!-- Search field -->
-                <Border Grid.Row="0" CornerRadius="9" Height="36"
+                <Border Grid.Row="0" CornerRadius="6" Height="36"
                         Background="{DynamicResource SurfaceAltBrush}"
                         BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="1">
                     <Grid Margin="10,0,6,0">
@@ -201,18 +212,38 @@
                     </Grid>
                 </Border>
 
-                <!-- Section title: what the results are based on, plus AI status -->
-                <DockPanel Grid.Row="1" Margin="4,12,4,6" LastChildFill="True">
-                    <TextBlock x:Name="AiBadge" DockPanel.Dock="Right" FontSize="11"
-                               Foreground="{DynamicResource AccentBrush}" Visibility="Collapsed"
-                               VerticalAlignment="Center" Margin="8,0,0,0" />
+                <!-- Where the suggestions come from: "From selection: “…”" on one line -->
+                <DockPanel x:Name="CtxPanel" Grid.Row="1" Margin="4,8,4,0" LastChildFill="True" Visibility="Collapsed">
+                    <TextBlock x:Name="CtxSource" DockPanel.Dock="Left" FontSize="11"
+                               Foreground="{DynamicResource MutedBrush}" Margin="0,0,6,0" />
+                    <TextBlock x:Name="CtxLabel" FontSize="11" Foreground="{DynamicResource TextBrush}"
+                               TextTrimming="CharacterEllipsis" />
+                </DockPanel>
+
+                <!-- Section title + AI status -->
+                <DockPanel Grid.Row="2" Margin="4,10,4,6" LastChildFill="True">
+                    <StackPanel x:Name="AiIndicator" DockPanel.Dock="Right" Orientation="Horizontal"
+                                VerticalAlignment="Center" Visibility="Collapsed" Margin="8,0,0,0">
+                        <Ellipse Width="6" Height="6" Fill="{DynamicResource AccentBrush}" Margin="0,0,6,0" VerticalAlignment="Center">
+                            <Ellipse.Triggers>
+                                <EventTrigger RoutedEvent="Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                            <DoubleAnimation Storyboard.TargetProperty="Opacity" From="1" To="0.35" Duration="0:0:0.5" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Ellipse.Triggers>
+                        </Ellipse>
+                        <TextBlock x:Name="AiText" FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                    </StackPanel>
                     <TextBlock x:Name="SectionLabel" FontSize="11" FontWeight="SemiBold"
                                Foreground="{DynamicResource MutedBrush}"
                                TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
                 </DockPanel>
 
                 <!-- Emoji grid; size is set from the config (columns × visible rows) -->
-                <Grid Grid.Row="2">
+                <Grid Grid.Row="3">
                     <ListBox x:Name="EmojiList"
                              Background="Transparent" BorderThickness="0" Padding="0"
                              Focusable="False"
@@ -227,20 +258,22 @@
                                 Visibility="Collapsed" IsHitTestVisible="False">
                         <TextBlock Text="🔍" FontFamily="{StaticResource EmojiFont}" FontSize="28"
                                    Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center" />
-                        <TextBlock x:Name="EmptyText" Margin="0,8,0,0" FontSize="13"
-                                   Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center"
-                                   TextAlignment="Center" TextWrapping="Wrap" MaxWidth="260" />
+                        <TextBlock x:Name="EmptyText" Margin="0,8,0,0" FontSize="14"
+                                   Foreground="{DynamicResource TextBrush}" HorizontalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" MaxWidth="300" />
+                        <TextBlock x:Name="EmptyHint" Margin="0,6,0,0" FontSize="12"
+                                   Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Center" />
                     </StackPanel>
                 </Grid>
 
                 <!-- Footer: preview of the highlighted emoji + keyboard hints -->
-                <Border Grid.Row="3" Margin="-12,8,-12,0" Padding="14,8,12,0"
+                <Border Grid.Row="4" Margin="-12,8,-12,0" Padding="14,8,12,0"
                         BorderBrush="{DynamicResource StrokeBrush}" BorderThickness="0,1,0,0">
                     <DockPanel LastChildFill="True" Height="30">
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                             <Border Style="{StaticResource KeyChip}"><TextBlock Text="↵" Style="{StaticResource KeyText}" /></Border>
                             <TextBlock x:Name="InsertHint" Style="{StaticResource KeyText}" />
-                            <Border Style="{StaticResource KeyChip}"><TextBlock Text="⇧↵" Style="{StaticResource KeyText}" /></Border>
+                            <Border Style="{StaticResource KeyChip}"><TextBlock Text="Ctrl C" Style="{StaticResource KeyText}" /></Border>
                             <TextBlock x:Name="CopyHint" Style="{StaticResource KeyText}" />
                             <Border Style="{StaticResource KeyChip}"><TextBlock Text="Esc" Style="{StaticResource KeyText}" /></Border>
                         </StackPanel>

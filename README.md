@@ -138,8 +138,8 @@ Restart EmojiPick after editing the file by hand.
     "theme": "system",          // "dark" | "light" | "system"
     "fontSize": 24,
     "windowOpacity": 0.97,
-    "gridColumns": 7,
-    "gridRows": 4,              // visible rows, more results scroll
+    "gridColumns": 6,
+    "gridRows": 3,              // visible rows, more results scroll
     "positionMode": "caret",    // "caret" | "cursor" | "center"
     "colorEmoji": true,         // color rendering via Emoji.Wpf, false = monochrome
     "skinTone": 0               // 0 = default, 1..5 = light → dark
@@ -148,7 +148,7 @@ Restart EmojiPick after editing the file by hand.
     "injectMode": "paste",      // "paste" | "type" (Unicode keystrokes) | "clipboard"
     "restoreClipboard": true,   // put the previous clipboard back after pasting
     "fuzzyThreshold": 0.6,
-    "maxResults": 42
+    "maxResults": 18
   },
   "language": "auto",           // UI and emoji-name language ("en", "fr", or "auto" = Windows language)
   "llm": {
@@ -166,12 +166,13 @@ Restart EmojiPick after editing the file by hand.
 | Key | Action |
 |-----|--------|
 | *type* | Search (English or French keywords, accents optional) |
-| `↑` `↓` `←` `→` / `Tab` | Navigate emoji grid |
+| `↑` `↓` `←` `→` / `Tab` | Navigate emoji grid (wraps around) |
 | `PageUp` / `PageDown` | Jump one page of results |
 | `Enter` / click | Insert emoji at the cursor |
-| `Shift+Enter` / right-click | Copy emoji to clipboard only |
+| `Ctrl+C` | Copy the highlighted emoji, picker stays open |
+| `Shift+Enter` / right-click | Copy emoji to clipboard and close |
 | `Ctrl+T` / ✋ button | Cycle the skin tone (remembered) |
-| `Escape` | Clear search, press again to close |
+| `Escape` | Close the picker |
 | Hotkey again | Close the picker |
 
 When no text is selected, the picker shows your recently used emoji.

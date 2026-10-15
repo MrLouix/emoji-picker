@@ -27,6 +27,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Skin tones: `tones` variants in the database, ✋ button / Ctrl+T in the picker, `ui.skinTone`
 - French user interface (picker, tray menu, settings), following `language` / Windows language
 
+### Changed (UI review)
+- Picker layout from the UI review: context line ("From selection / Near the cursor “…”"),
+  uppercase section titles, pulsing "AI refining…" indicator, dot on emoji added by the AI
+  (the highlighted emoji stays highlighted), "No emoji for …" message with a hint, 52px tiles,
+  10px corners, tile tooltips, window centered under the mouse pointer in cursor mode
+- Keys: Ctrl+C copies the highlighted emoji and keeps the picker open; ←/→ wrap around the grid,
+  ↑/↓ wrap within the column; Esc closes directly
+- Default grid 6 × 3 with 18 results (existing config.json files keep their values)
+
 ### Changed
 - Target .NET 8 (LTS); .NET 7 is out of support
 - MSI installer now packages the single-file published exe (it previously shipped `EmojiPick.exe` without its DLLs)

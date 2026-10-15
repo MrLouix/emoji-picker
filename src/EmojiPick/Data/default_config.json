@@ -12,8 +12,8 @@
     "theme": "system",
     "fontSize": 24,
     "windowOpacity": 0.97,
-    "gridColumns": 7,
-    "gridRows": 4,
+    "gridColumns": 6,
+    "gridRows": 3,
     "positionMode": "caret",
     "colorEmoji": true,
     "skinTone": 0
@@ -23,7 +23,7 @@
     "injectMode": "paste",
     "restoreClipboard": true,
     "fuzzyThreshold": 0.6,
-    "maxResults": 42
+    "maxResults": 18
   },
   "llm": {
     "enabled": true,

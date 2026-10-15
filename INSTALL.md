@@ -92,7 +92,7 @@ Advanced users can edit the files directly (restart EmojiPick afterwards):
 | `ui.theme` | `"system"` | `"dark"`, `"light"` or `"system"` |
 | `ui.colorEmoji` | `true` | Color emoji (false = monochrome) |
 | `ui.skinTone` | `0` | 0 = default, 1..5 = light → dark |
-| `ui.gridColumns` / `ui.gridRows` | `7` / `4` | Grid size (more results scroll) |
+| `ui.gridColumns` / `ui.gridRows` | `6` / `3` | Grid size (more results scroll) |
 | `ui.positionMode` | `"caret"` | `"caret"`, `"cursor"` or `"center"` |
 | `behavior.injectMode` | `"paste"` | `"paste"`, `"type"` or `"clipboard"` |
 | `behavior.restoreClipboard` | `true` | Restore the clipboard after pasting |

@@ -19,8 +19,11 @@ using Point = System.Windows.Point;
 
 namespace EmojiPick.Windows;
 
-/// <summary>One grid cell: the emoji and the character shown for the current skin tone.</summary>
-public sealed record EmojiTile(EmojiEntry Entry, string Display);
+/// <summary>
+/// One grid cell: the emoji, the character shown for the current skin tone, and whether the
+/// AI refinement added it (marked with a dot).
+/// </summary>
+public sealed record EmojiTile(EmojiEntry Entry, string Display, bool IsAi = false);
 
 public partial class OverlayWindow : System.Windows.Window
 {
@@ -45,7 +48,7 @@ public partial class OverlayWindow : System.Windows.Window
     private CancellationTokenSource? _llmCts;
     private Point? _lastMousePosition;
     private bool _isClosing;
-    private bool _userNavigated;
+    private readonly HashSet<string> _aiChars = new();
 
     public TextContext InitialContext => _context;
     /// <summary>Character to insert (with the chosen skin tone).</summary>
@@ -81,6 +84,7 @@ public partial class OverlayWindow : System.Windows.Window
         EmojiList.ItemTemplate = (DataTemplate)Resources[_config.Ui.ColorEmoji ? "ColorTileTemplate" : "MonoTileTemplate"];
         EmojiList.ItemsSource = _items;
         Placeholder.Text = L.T(_contextQuery.Length > 0 ? "Refine" : "Search");
+        UpdateContextLine();
         InsertHint.Text = L.T("Insert");
         CopyHint.Text = L.T("Copy");
         ClearButton.ToolTip = L.T("Clear");
@@ -116,8 +120,9 @@ public partial class OverlayWindow : System.Windows.Window
 
     private void ConfigureGrid()
     {
-        double emojiSize = _config.Ui.FontSize;
-        double tile = Math.Round(emojiSize + 22);
+        // Default font size 24 → 52px tiles with 28px emoji.
+        double emojiSize = _config.Ui.FontSize + 4;
+        double tile = Math.Round(_config.Ui.FontSize + 28.0);
         Resources["EmojiFontSize"] = emojiSize;
         Resources["TileSize"] = tile;
 
@@ -225,8 +230,20 @@ public partial class OverlayWindow : System.Windows.Window
             x = work.Left + (work.Width - width) / 2;
             y = work.Top + (work.Height - height) / 3;
         }
+        else if (mode == "cursor" || _context.Caret is null)
+        {
+            // Mouse pointer: centered horizontally, just below it.
+            x = anchorX - width / 2;
+            y = anchorBottom - margin;
+            if (y + height > work.Bottom)
+            {
+                y = anchorTop - height - 8 + margin;
+                above = true;
+            }
+        }
         else
         {
+            // Text caret: left edge aligned with the caret, like an autocomplete popup.
             x = anchorX - margin;
             y = anchorBottom + 4 - margin;
             if (y + height > work.Bottom)
@@ -261,37 +278,52 @@ public partial class OverlayWindow : System.Windows.Window
         RefreshResults();
     }
 
+    /// <summary>"From selection “…”" / "Near the cursor “…”" line under the search field.</summary>
+    private void UpdateContextLine()
+    {
+        if (_contextQuery.Length == 0)
+        {
+            CtxPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        CtxPanel.Visibility = Visibility.Visible;
+        CtxSource.Text = L.T(_context.Source == TextSource.Selection ? "FromSelection" : "FromCursor");
+        // Newlines are already collapsed by BuildContextQuery; TextTrimming adds the ellipsis.
+        CtxLabel.Text = _context.Source == TextSource.Selection
+            ? $"“{_contextQuery}”"
+            : $"“…{ShortenEnd(_contextQuery)}”";
+        CtxLabel.ToolTip = _contextQuery;
+    }
+
     private void RefreshResults()
     {
         _llmCts?.Cancel();
-        _userNavigated = false;
-        SetAiStatus(null);
+        _aiChars.Clear();
+        SetAiStatus(false);
 
         var typed = SearchBox.Text.Trim();
         if (typed.Length > 0)
         {
             var matches = EmojiMatcher.GetMatches(typed, _maxResults, _threshold);
-            ShowResults(matches.Select(m => m.Emoji), L.T("ResultsFor", Shorten(typed)), L.T("NoResults", Shorten(typed)));
+            ShowResults(matches.Select(m => m.Emoji), L.T("SectionResults"), typed);
             return;
         }
 
         if (_contextQuery.Length > 0)
         {
-            var label = L.T("SuggestionsFor", _context.Source == TextSource.Selection
-                ? Shorten(_contextQuery)
-                : "…" + ShortenEnd(_contextQuery));
             var matches = EmojiMatcher.GetMatches(_contextQuery, _maxResults, _threshold).Select(m => m.Emoji).ToList();
 
             if (matches.Count > 0)
             {
-                ShowResults(matches, label, null);
-                RequestLlmSuggestions(matches, label);
+                ShowResults(matches, L.T("SectionSuggestions"), _contextQuery);
+                RequestLlmSuggestions(matches);
                 return;
             }
 
             // Nothing matched the context: show recents, the LLM may still find something.
             ShowDefaults();
-            RequestLlmSuggestions(_items.Select(t => t.Entry).ToList(), label);
+            RequestLlmSuggestions(_items.Select(t => t.Entry).ToList());
             return;
         }
 
@@ -309,27 +341,32 @@ public partial class OverlayWindow : System.Windows.Window
             .Where(p => recent.All(r => r.Char != p.Char));
 
         ShowResults(recent.Concat(fill).Take(_maxResults),
-            L.T(recent.Count > 0 ? "RecentlyUsed" : "Popular"),
-            L.T("NoEmoji"));
+            L.T(recent.Count > 0 ? "SectionRecent" : "SectionPopular"), null);
     }
 
-    private void ShowResults(IEnumerable<EmojiEntry> entries, string label, string? emptyText)
+    /// <param name="query">Text the results were searched for, quoted in the "no emoji" message.</param>
+    private void ShowResults(IEnumerable<EmojiEntry> entries, string label, string? query, int selectIndex = 0)
     {
         _items.Clear();
-        foreach (var entry in entries) _items.Add(new EmojiTile(entry, entry.WithSkinTone(_skinTone)));
+        foreach (var entry in entries) _items.Add(CreateTile(entry));
 
         SectionLabel.Text = label;
-        EmptyText.Text = emptyText ?? "";
+        EmptyText.Text = query is null ? L.T("NoEmoji") : L.T("NoResultsTitle", Shorten(query));
+        EmptyHint.Text = query is null ? "" : L.T("NoResultsHint");
         EmptyState.Visibility = _items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
-        Select(_items.Count > 0 ? 0 : -1);
+        Select(_items.Count > 0 ? Math.Clamp(selectIndex, 0, _items.Count - 1) : -1);
     }
 
+    private EmojiTile CreateTile(EmojiEntry entry) =>
+        new(entry, entry.WithSkinTone(_skinTone), _aiChars.Contains(entry.Char));
+
     /// <summary>
-    /// Asks the local LLM to re-rank candidates for the context text and moves its picks to the front.
-    /// Skipped as soon as the user types or navigates, so the grid never changes under their keys.
+    /// Asks the local LLM to re-rank candidates for the captured context (not for typed searches)
+    /// and moves its picks to the front. Emoji it adds are marked with a dot; the highlighted
+    /// emoji stays highlighted. Cancelled when the user types or the window closes.
     /// </summary>
-    private async void RequestLlmSuggestions(List<EmojiEntry> fuzzy, string label)
+    private async void RequestLlmSuggestions(List<EmojiEntry> fuzzy)
     {
         if (_llm is null || _contextQuery.Length == 0) return;
 
@@ -342,33 +379,34 @@ public partial class OverlayWindow : System.Windows.Window
             .Take(LlmCandidateCount)
             .ToList();
 
-        SetAiStatus(L.T("Thinking"));
+        SetAiStatus(true);
         try
         {
             var ranked = await _llm.GetLlmRecommendations(_contextQuery, candidates, cts.Token);
-            if (cts.IsCancellationRequested || _isClosing || _userNavigated || SearchBox.Text.Length > 0) return;
+            if (cts.IsCancellationRequested || _isClosing || SearchBox.Text.Length > 0 || ranked.Count == 0) return;
 
-            if (ranked.Count == 0)
-            {
-                SetAiStatus(null);
-                return;
-            }
+            var shown = _items.Select(t => t.Entry.Char).ToHashSet();
+            foreach (var entry in ranked.Where(e => !shown.Contains(e.Char))) _aiChars.Add(entry.Char);
 
+            var keep = (EmojiList.SelectedItem as EmojiTile)?.Entry.Char;
             var merged = ranked.Concat(_items.Select(t => t.Entry)).DistinctBy(e => e.Char).Take(_maxResults).ToList();
-            ShowResults(merged, label, null);
-            SetAiStatus(L.T("AiRanked"));
+            ShowResults(merged, SectionLabel.Text, _contextQuery,
+                keep is null ? 0 : Math.Max(0, merged.FindIndex(e => e.Char == keep)));
         }
         catch (Exception ex)
         {
             LoggerService.Warn($"OverlayWindow: LLM suggestions failed — {ex.Message}");
-            if (!cts.IsCancellationRequested) SetAiStatus(null);
+        }
+        finally
+        {
+            if (ReferenceEquals(_llmCts, cts)) SetAiStatus(false);
         }
     }
 
-    private void SetAiStatus(string? text)
+    private void SetAiStatus(bool refining)
     {
-        AiBadge.Text = text ?? "";
-        AiBadge.Visibility = text is null ? Visibility.Collapsed : Visibility.Visible;
+        AiText.Text = L.T("AiRefining");
+        AiIndicator.Visibility = refining ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static string Shorten(string text) =>
@@ -433,7 +471,7 @@ public partial class OverlayWindow : System.Windows.Window
         int selected = EmojiList.SelectedIndex;
         var entries = _items.Select(t => t.Entry).ToList();
         _items.Clear();
-        foreach (var entry in entries) _items.Add(new EmojiTile(entry, entry.WithSkinTone(_skinTone)));
+        foreach (var entry in entries) _items.Add(CreateTile(entry));
         Select(Math.Min(selected, _items.Count - 1));
         UpdateToneButton();
 
@@ -448,17 +486,38 @@ public partial class OverlayWindow : System.Windows.Window
     private static string Capitalize(string text) =>
         string.IsNullOrEmpty(text) ? text : char.ToUpperInvariant(text[0]) + text[1..];
 
+    /// <summary>←/→/Tab: wraps around from the last emoji to the first and back.</summary>
     private void MoveHorizontal(int delta)
     {
-        if (_items.Count == 0) return;
-        _userNavigated = true;
-        Select(Math.Clamp(EmojiList.SelectedIndex + delta, 0, _items.Count - 1));
+        int n = _items.Count;
+        if (n == 0) return;
+        Select(((Math.Max(0, EmojiList.SelectedIndex) + delta) % n + n) % n);
     }
 
+    /// <summary>↑/↓: one row, wrapping within the same column.</summary>
+    private void MoveVerticalWrapped(int direction)
+    {
+        int n = _items.Count, c = _columns;
+        if (n == 0) return;
+
+        int s = Math.Max(0, EmojiList.SelectedIndex);
+        if (direction > 0)
+            s = s + c < n ? s + c : s % c;
+        else if (s - c >= 0)
+            s -= c;
+        else
+        {
+            int last = s % c;
+            while (last + c < n) last += c;
+            s = Math.Min(last, n - 1);
+        }
+        Select(s);
+    }
+
+    /// <summary>PageUp/PageDown: several rows, stopping at the first/last row.</summary>
     private void MoveVertical(int rows)
     {
         if (_items.Count == 0) return;
-        _userNavigated = true;
 
         int current = Math.Max(0, EmojiList.SelectedIndex);
         int target = current + rows * _columns;
@@ -491,9 +550,13 @@ public partial class OverlayWindow : System.Windows.Window
         switch (e.Key)
         {
             case Key.Escape:
-                // First Esc clears the search, second one closes.
-                if (SearchBox.Text.Length > 0) SearchBox.Clear();
-                else Close();
+                Close();
+                break;
+
+            // Ctrl+C copies the highlighted emoji and keeps the picker open,
+            // unless text is selected in the search box (then it copies that text).
+            case Key.C when ctrl && SearchBox.SelectionLength == 0:
+                CopyHighlighted();
                 break;
 
             case Key.Enter:
@@ -517,11 +580,11 @@ public partial class OverlayWindow : System.Windows.Window
                 break;
 
             case Key.Up:
-                MoveVertical(-1);
+                MoveVerticalWrapped(-1);
                 break;
 
             case Key.Down:
-                MoveVertical(1);
+                MoveVerticalWrapped(1);
                 break;
 
             case Key.PageUp:
@@ -537,6 +600,18 @@ public partial class OverlayWindow : System.Windows.Window
         }
 
         e.Handled = true;
+    }
+
+    private void CopyHighlighted()
+    {
+        if (EmojiList.SelectedItem is not EmojiTile tile) return;
+
+        if (ClipboardService.SetText(tile.Display))
+        {
+            RecentEmojiService.Add(tile.Entry.Char);
+            PreviewName.Text = L.T("Copied");
+            LoggerService.Info($"OverlayWindow: emoji copied '{tile.Display}'");
+        }
     }
 
     // ─── Mouse ────────────────────────────────────────────────────────────────
@@ -573,7 +648,6 @@ public partial class OverlayWindow : System.Windows.Window
         int index = IndexFromEvent(e);
         if (index >= 0 && index != EmojiList.SelectedIndex)
         {
-            _userNavigated = true;
             EmojiList.SelectedIndex = index;
             UpdatePreview();
         }
