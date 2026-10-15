@@ -125,7 +125,7 @@
                 <TextBlock x:Name="SkinToneLabel" Grid.Row="2" Style="{StaticResource Label}" />
                 <ComboBox x:Name="SkinToneBox" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" />
 
-                <CheckBox x:Name="ColorEmojiBox" Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" />
+                <CheckBox x:Name="ColorEmojiBox" Grid.Row="3" Grid.ColumnSpan="3" />
 
                 <TextBlock x:Name="SizeLabel" Grid.Row="4" Style="{StaticResource Label}" />
                 <Slider x:Name="SizeSlider" Grid.Row="4" Grid.Column="1" Minimum="14" Maximum="48" />
@@ -165,8 +165,9 @@
                 <TextBlock x:Name="InjectLabel" Grid.Row="1" Style="{StaticResource Label}" />
                 <ComboBox x:Name="InjectBox" Grid.Row="1" Grid.Column="1" />
 
-                <CheckBox x:Name="RestoreClipboardBox" Grid.Row="2" Grid.Column="1" />
-                <CheckBox x:Name="AutoStartBox" Grid.Row="3" Grid.Column="1" />
+                <!-- Checkboxes span both columns: their labels are long in French and do not wrap -->
+                <CheckBox x:Name="RestoreClipboardBox" Grid.Row="2" Grid.ColumnSpan="2" />
+                <CheckBox x:Name="AutoStartBox" Grid.Row="3" Grid.ColumnSpan="2" />
             </Grid>
         </Border>
 
